@@ -17,6 +17,7 @@ const view = GraphPanel.mount(container, {
   onInteraction(active) {}
 });
 view.update(nextGraph, nextState);
+view.setHostTheme('light');
 view.getState();
 view.destroy();
 ```
@@ -28,6 +29,12 @@ zoom 1은 100%다.
 같은 그래프의 update에서 state를 생략하면 선택, 카메라와 검색을 유지한다.
 외부 갱신은 onAction을 발생시키지 않는다.
 destroy는 자신이 만든 요소, 감시자와 이벤트만 제거한다.
+
+테마는 화면 상단에서 자동, 라이트 또는 다크를 선택한다.
+자동은 mount의 hostTheme 또는 setHostTheme으로 전달한 앱 테마를 따르며, 앱 테마가 없으면 운영체제 설정을 따른다.
+선택한 테마는 브라우저 저장소를 사용할 수 있을 때 같은 출처의 다음 화면에도 적용한다.
+onThemeChange(theme)는 적용된 light 또는 dark 값을 전달한다.
+테마 변경은 그래프의 선택, 카메라와 검색 상태를 바꾸지 않는다.
 
 | 사용자 명령 | 값 | 변경 범위 |
 |---|---|---|

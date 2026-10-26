@@ -40,6 +40,7 @@
     if (!view) {
       view = GraphPanel.mount(container, {
         graph: next.graph, state: localState(next),
+        onThemeChange(theme) {document.documentElement.style.colorScheme = theme;},
         onAction(action) {actions.push({revision: snapshot.revision, action});},
         onInteraction(value) {interacting = value;},
       });

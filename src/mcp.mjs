@@ -88,7 +88,7 @@ transport.send = async message => {
 };
 serveStdio(factory => {
   const protocolVersion = () => factory.era === 'modern' ? '2026-07-28' : negotiatedVersion;
-  const server = new McpServer({name: 'graph-viewer', version: '1.1.1'}, {
+  const server = new McpServer({name: 'graph-viewer', version: '1.2.0'}, {
     capabilities: {extensions: {'io.modelcontextprotocol/ui': {}}},
     instructions: 'Pass the current project absolute path as projectPath. Use graph_publish with JSON or Mermaid, then open_graph. Updates do not open another tab. Chat identity comes from the host.',
   });

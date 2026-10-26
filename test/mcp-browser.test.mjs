@@ -8,7 +8,7 @@ import { CHAT_A, CHAT_B, fixture, researchGraph, publish, success, action } from
 const packagePath = process.env.GRAPH_PANEL_PLAYWRIGHT;
 const browserOptions = { headless: true, ...(process.env.GRAPH_PANEL_CHROMIUM ? { executablePath: process.env.GRAPH_PANEL_CHROMIUM } : {}) };
 
-async function browserFixture(t, { initialOrder = 'after' } = {}) {
+async function browserFixture(t, { initialOrder = 'after', hostTheme = 'dark' } = {}) {
   const f = await fixture(t), client = await f.start();
   const originalCall = client.call;
   client.call = (name, args = {}, scope) => originalCall(name, name === 'graph_view' ? args : {projectPath: f.root, ...args}, scope);
@@ -38,10 +38,11 @@ async function browserFixture(t, { initialOrder = 'after' } = {}) {
     contentType: 'text/html', body: '<title>독립 MCP 호스트</title><iframe title="그래프" style="width:100%;height:800px;border:0"></iframe>',
   }));
   await page.goto('http://127.0.0.1/mcp-contract-host');
-  await page.evaluate(({ html, opened, initialOrder }) => {
+  await page.evaluate(({ html, opened, initialOrder, hostTheme }) => {
     const frame = document.querySelector('iframe');
     const send = message => frame.contentWindow.postMessage({ jsonrpc: '2.0', ...message }, '*');
     window.deliverToolResult = result => send({ method: 'ui/notifications/tool-result', params: result });
+    window.deliverHostContext = context => send({method: 'ui/notifications/host-context-changed', params: context});
     let initialDelivered = false;
     const deliverInitial = () => {
       if (initialDelivered) return;
@@ -59,7 +60,7 @@ async function browserFixture(t, { initialOrder = 'after' } = {}) {
       let result;
       if (method === 'ui/initialize') {
         if (initialOrder === 'before') deliverInitial();
-        result = { protocolVersion: '2026-01-26', hostInfo: { name: 'independent-test-host', version: '1' }, hostContext: { displayMode: 'fullscreen' } };
+        result = { protocolVersion: '2026-01-26', hostInfo: { name: 'independent-test-host', version: '1' }, hostContext: { displayMode: 'fullscreen', theme: hostTheme } };
       } else if (method === 'tools/call') {
         result = await window.mcpTool(params);
       } else {
@@ -69,12 +70,13 @@ async function browserFixture(t, { initialOrder = 'after' } = {}) {
       send({ id, result });
     });
     frame.srcdoc = html;
-  }, { html: contents[0].text, opened, initialOrder });
+  }, { html: contents[0].text, opened, initialOrder, hostTheme });
   const frame = page.frameLocator('iframe');
   await frame.locator('.node[data-id="question"]').waitFor();
   return {
     ...f, client, graph, opened, page, frame, errors,
     deliver: result => page.evaluate(result => window.deliverToolResult(result), result),
+    changeHostContext: context => page.evaluate(context => window.deliverHostContext(context), context),
     holdNextSync(sessionId) {
       let received, release;
       const receivedPromise = new Promise(resolve => { received = resolve; });
@@ -209,7 +211,7 @@ test('node details use a scrollable custom tooltip that supports hover, keyboard
   await f.page.waitForTimeout(1150);
   assert.equal(await tooltip.isVisible(), false);
 
-  await f.frame.getByRole('textbox', {name: '노드 검색'}).focus();
+  await f.frame.getByRole('combobox', {name: '화면 테마'}).focus();
   await f.page.keyboard.press('Tab');
   await tooltip.waitFor();
   await f.page.keyboard.press('PageDown');
@@ -244,7 +246,7 @@ test('node details use a scrollable custom tooltip that supports hover, keyboard
   assert.ok(narrowScrollTop > 0);
   await f.page.waitForTimeout(1150);
   assert.equal(await scroller.evaluate(element => element.scrollTop), narrowScrollTop);
-  await f.frame.getByRole('textbox', {name: '노드 검색'}).focus();
+  await f.frame.getByRole('combobox', {name: '화면 테마'}).focus();
   await f.page.mouse.move(0, 0);
   await tooltip.waitFor({state: 'hidden'});
   const panel = {...f.opened._meta.graphPanel, snapshot: success(await f.client.call('graph_read')).snapshot};
@@ -254,5 +256,66 @@ test('node details use a scrollable custom tooltip that supports hover, keyboard
   await f.page.keyboard.press('Enter');
   await tooltip.waitFor();
   assert.equal(await tooltip.locator('.tooltip-title').textContent(), graph.nodes[0].label);
+  assert.deepEqual(f.errors, []);
+});
+
+test('light and dark themes follow host changes, preserve graph state and retain an explicit choice after reopening', {skip: !packagePath, timeout: 30000}, async t => {
+  const f = await browserFixture(t, {hostTheme: 'dark'});
+  f.page.setDefaultTimeout(7000);
+  await f.page.emulateMedia({colorScheme: 'light'});
+  const surface = theme => f.frame.locator(`.graph-viewer[data-theme="${theme}"]`);
+  const control = f.frame.getByRole('combobox', {name: '화면 테마'});
+  const state = () => f.frame.locator('svg.graph').evaluate(() => window.graphPanelView.getState());
+  const appearance = () => f.frame.locator('svg.graph').evaluate(svg => {
+    const root = svg.getRootNode(), style = selector => getComputedStyle(root.querySelector(selector));
+    return {canvas: style('.canvas').backgroundColor, card: style('.node>rect').fill,
+      title: style('.node-title').fill, body: style('.node-body').fill, type: style('.node-type').fill,
+      minimap: style('.minimap').backgroundColor, tooltip: style('.tooltip-title').color,
+      page: getComputedStyle(document.body).backgroundColor};
+  });
+  await surface('dark').waitFor();
+  await f.frame.locator('.node[data-id="evidence"]').click();
+  await storedUntil(f.client, snapshot => snapshot.state.selectedNodeId === 'evidence');
+  await f.page.waitForTimeout(420);
+  const before = await state();
+  const dark = await appearance();
+  await f.changeHostContext({theme: 'light'});
+  await surface('light').waitFor();
+  const light = await appearance();
+  for (const key of Object.keys(light)) assert.notEqual(light[key], dark[key], key);
+  const luminance = color => color.match(/[\d.]+/g).slice(0, 3).map(value => {
+    const s = Number(value) / 255; return s <= .04045 ? s / 12.92 : ((s + .055) / 1.055) ** 2.4;
+  }).reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
+  for (const key of ['title', 'body', 'type']) {
+    const a = luminance(light[key]), b = luminance(light.card);
+    assert.ok((Math.max(a, b) + .05) / (Math.min(a, b) + .05) >= 4.5, key);
+  }
+  assert.deepEqual(await state(), before);
+  await control.selectOption('dark');
+  await surface('dark').waitFor();
+  await f.changeHostContext({theme: 'light'});
+  await f.page.waitForTimeout(80);
+  assert.equal(await surface('dark').count(), 1);
+  await control.selectOption('light');
+  await surface('light').waitFor();
+  await f.page.evaluate(opened => new Promise(resolve => {
+    const frame = document.querySelector('iframe');
+    const initialized = event => {
+      if (event.source !== frame.contentWindow || event.data?.method !== 'ui/notifications/initialized') return;
+      removeEventListener('message', initialized);
+      window.deliverToolResult(opened);
+      resolve();
+    };
+    addEventListener('message', initialized);
+    frame.srcdoc = frame.srcdoc;
+  }), f.opened);
+  await surface('light').waitFor();
+  assert.equal(await control.inputValue(), 'light');
+  assert.deepEqual(await state(), before);
+  await control.selectOption('auto');
+  await surface('dark').waitFor();
+  await f.changeHostContext({theme: 'light'});
+  await surface('light').waitFor();
+  assert.deepEqual(await state(), before);
   assert.deepEqual(f.errors, []);
 });

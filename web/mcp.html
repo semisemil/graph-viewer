@@ -5,14 +5,15 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Graph Viewer</title>
   <style>
-    html,body{height:100%;margin:0;background:#141618;color:#eef0f0;font:13px system-ui,sans-serif}
+    :root{color-scheme:light dark}
+    html,body{height:100%;margin:0;background:light-dark(#f2f5f8,#141618);color:light-dark(#20303e,#eef0f0);font:13px system-ui,sans-serif}
     body{display:flex;flex-direction:column}
-    header{display:flex;align-items:center;gap:12px;padding:9px 12px;border-bottom:1px solid #36393c}
+    header{display:flex;align-items:center;gap:12px;padding:9px 12px;border-bottom:1px solid light-dark(#dce3ea,#36393c)}
     #status{flex:1;min-width:0;overflow-wrap:anywhere}
-    #status[data-error="true"]{color:#ffbf80}
+    #status[data-error="true"]{color:light-dark(#a34b0c,#ffbf80)}
     #graph{flex:1;min-height:280px}
-    button{padding:6px 10px;color:inherit;background:#282c2f;border:1px solid #4a5054;border-radius:6px;cursor:pointer}
-    button:focus-visible{outline:2px solid #7fb5ff}
+    button{padding:6px 10px;color:inherit;background:light-dark(#fff,#282c2f);border:1px solid light-dark(#c4cfd9,#4a5054);border-radius:6px;cursor:pointer}
+    button:focus-visible{outline:2px solid light-dark(#2563eb,#7fb5ff)}
   </style>
 </head>
 <body>
@@ -23,7 +24,7 @@
     'use strict';
     const label=document.getElementById('status'), container=document.getElementById('graph'), retry=document.getElementById('retry');
     const pending=new Map(), openings=[];
-    let seq=0, ready=false, displayMode, scope, sessionId, snapshot, view, interacting=false;
+    let seq=0, ready=false, displayMode, scope, sessionId, snapshot, view, hostTheme, interacting=false;
     let actions=[], running=false, stopped=false, stale=false, timer, reported='', saving=false;
     function message(text,error=false){label.textContent=text;label.dataset.error=String(error);}
     function sameScope(a,b){return a?.hostId===b?.hostId && a?.threadId===b?.threadId && (a?.projectPath || null)===(b?.projectPath || null);}
@@ -52,7 +53,8 @@
       snapshot=next;
       if(!view){
         container.hidden=false;
-        view=GraphPanel.mount(container,{graph:next.graph,state:localState(next),
+        view=GraphPanel.mount(container,{graph:next.graph,state:localState(next),hostTheme,
+          onThemeChange(theme){document.documentElement.style.colorScheme=theme;},
           onAction(action){
             if(stale || !snapshot)return;
             const queued={graphId:snapshot.graph.graphId,revision:snapshot.revision,action};
@@ -138,6 +140,13 @@
       if(mode==='fullscreen')schedule(0);
       else message('그래프는 별도 탭에서 표시합니다. 현재 모드: '+(mode || '미확인'));
     }
+    function applyHostTheme(theme){
+      if(theme==='light' || theme==='dark'){
+        hostTheme=theme;
+        if(view)view.setHostTheme(hostTheme);
+        else document.documentElement.style.colorScheme=hostTheme;
+      }
+    }
     addEventListener('message',event=>{
       if(event.source!==window.parent || event.data?.jsonrpc!=='2.0')return;
       const m=event.data,p=pending.get(m.id);
@@ -147,7 +156,10 @@
         if(binding?.scope && typeof binding.sessionId==='string'){
           openings.push({scope:binding.scope,sessionId:binding.sessionId});schedule(0);
         }
-      }else if(m.method==='ui/notifications/host-context-changed' && m.params?.displayMode!==undefined)setMode(m.params.displayMode);
+      }else if(m.method==='ui/notifications/host-context-changed'){
+        applyHostTheme(m.params?.theme);
+        if(m.params?.displayMode!==undefined)setMode(m.params.displayMode);
+      }
     });
     retry.onclick=()=>schedule(0);
     addEventListener('visibilitychange',()=>{if(document.hidden)clearTimeout(timer);else schedule(0);});
@@ -155,9 +167,9 @@
     async function start(){
       try{
         if(window.parent===window)throw new Error('Codex의 그래프 도구로 열어 주세요.');
-        const host=await request('ui/initialize',{appInfo:{name:'graph-viewer',version:'1.1.0'},appCapabilities:{},protocolVersion:'2026-01-26'});
+        const host=await request('ui/initialize',{appInfo:{name:'graph-viewer',version:'1.2.0'},appCapabilities:{},protocolVersion:'2026-01-26'});
         window.parent.postMessage({jsonrpc:'2.0',method:'ui/notifications/initialized',params:{}},'*');
-        ready=true;setMode(host.hostContext?.displayMode);
+        ready=true;applyHostTheme(host.hostContext?.theme);setMode(host.hostContext?.displayMode);
       }catch(error){message('연결 실패: '+error.message,true);}
     }
     void start();
