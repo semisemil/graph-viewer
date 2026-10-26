@@ -23,7 +23,7 @@ try {
   const output = path.join(temporary, 'tree');
   await cp(plugin, output, {recursive: true});
   for (const file of [
-    'README.md', '.gitignore', 'docs/architecture.md', 'docs/architecture-contracts.md', 'docs/development.md',
+    'AGENTS.md', 'README.md', '.gitignore', 'docs/architecture.md', 'docs/architecture-contracts.md', 'docs/development.md',
     'docs/images/investigation.jpg', 'examples/system-map.json', 'examples/request-latency.json', 'examples/request-latency.mmd',
   ]) {
     await mkdir(path.dirname(path.join(output, file)), {recursive: true});
