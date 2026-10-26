@@ -268,26 +268,32 @@ test('light and dark themes follow host changes, preserve graph state and retain
   const state = () => f.frame.locator('svg.graph').evaluate(() => window.graphPanelView.getState());
   const appearance = () => f.frame.locator('svg.graph').evaluate(svg => {
     const root = svg.getRootNode(), style = selector => getComputedStyle(root.querySelector(selector));
-    return {canvas: style('.canvas').backgroundColor, card: style('.node>rect').fill,
+    const gradientId = style('.node>rect').fill.match(/#([^"')]+)/)[1];
+    const paint = document.createElement('canvas').getContext('2d');
+    const card = [...root.getElementById(gradientId).querySelectorAll('stop')].map(stop => {
+      paint.fillStyle = getComputedStyle(stop).stopColor;
+      paint.fillRect(0, 0, 1, 1);
+      return `rgb(${[...paint.getImageData(0, 0, 1, 1).data].slice(0, 3).join(',')})`;
+    });
+    return {canvas: style('.canvas').backgroundColor, card,
       title: style('.node-title').fill, body: style('.node-body').fill, type: style('.node-type').fill,
       minimap: style('.minimap').backgroundColor, tooltip: style('.tooltip-title').color,
       page: getComputedStyle(document.body).backgroundColor};
   });
   await surface('dark').waitFor();
   await f.frame.locator('.node[data-id="evidence"]').click();
-  await storedUntil(f.client, snapshot => snapshot.state.selectedNodeId === 'evidence');
-  await f.page.waitForTimeout(420);
+  await storedUntil(f.client, snapshot => snapshot.state.selectedNodeId === 'evidence' && snapshot.state.views.large.camera !== null);
   const before = await state();
   const dark = await appearance();
   await f.changeHostContext({theme: 'light'});
   await surface('light').waitFor();
   const light = await appearance();
-  for (const key of Object.keys(light)) assert.notEqual(light[key], dark[key], key);
+  for (const key of Object.keys(light)) assert.notDeepEqual(light[key], dark[key], key);
   const luminance = color => color.match(/[\d.]+/g).slice(0, 3).map(value => {
     const s = Number(value) / 255; return s <= .04045 ? s / 12.92 : ((s + .055) / 1.055) ** 2.4;
   }).reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
-  for (const key of ['title', 'body', 'type']) {
-    const a = luminance(light[key]), b = luminance(light.card);
+  for (const key of ['title', 'body', 'type']) for (const background of light.card) {
+    const a = luminance(light[key]), b = luminance(background);
     assert.ok((Math.max(a, b) + .05) / (Math.min(a, b) + .05) >= 4.5, key);
   }
   assert.deepEqual(await state(), before);
