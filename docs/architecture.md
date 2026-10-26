@@ -81,13 +81,14 @@ Codex가 플러그인의 PowerShell 실행기를 시작한다.
 
 배포 서버는 실행 의존성을 포함한 번들이다.
 사용자는 npm 설치나 소스 빌드를 하지 않는다.
-소스 수정 후 빌드는 plugins/graph-viewer을 갱신한다.
-저장소의 marketplace가 그 폴더를 참조한다.
+dev 브랜치에서 빌드하면 plugins/graph-viewer 폴더를 생성한다.
+개발용 marketplace는 이 폴더를 참조한다.
+검사를 통과한 배포본은 main 브랜치의 루트에 배치한다.
+main의 marketplace는 루트의 플러그인을 참조한다.
 
-## 독립 화면과 기존 연결
+## 독립 화면
 
 독립 HTTP 화면과 CLI는 같은 엔진과 저장소를 사용한다.
-기존 CDP 요약 연결부는 선택적인 별도 실행 경로다.
-MCP 플러그인의 실행과 그래프 탭에는 CDP를 사용하지 않는다.
+Codex 앱의 그래프 탭은 MCP로 연결한다.
 
 엔진 API와 기존 HTTP/CLI 계약은 [명령과 데이터 계약](architecture-contracts.md)을 참고한다.

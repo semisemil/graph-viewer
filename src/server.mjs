@@ -6,7 +6,6 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import GraphModel from './model.js';
 import {GraphStore, chatRef, sameChat, failure} from './store.mjs';
-import {CodexConnection} from './cdp.mjs';
 
 const files = new Map([
   ['/view', ['../web/index.html', 'text/html; charset=utf-8']],
@@ -16,7 +15,7 @@ const files = new Map([
   ['/page.css', ['../web/page.css', 'text/css; charset=utf-8']],
 ]);
 
-export async function startServer({dataDir, port = 9232, cdpPort}) {
+export async function startServer({dataDir, port = 9232}) {
   const store = new GraphStore(dataDir);
   await store.init();
   const canonical = await realpath(dataDir);
@@ -31,7 +30,7 @@ export async function startServer({dataDir, port = 9232, cdpPort}) {
   }
   const origin = `http://127.0.0.1:${port}`, token = randomBytes(32).toString('hex');
   const sessions = new Map(), clients = new Map(), reports = new Map();
-  let adapter, closing = false;
+  let closing = false;
 
   function invalidate(clientId) {
     const previous = clients.get(clientId);
@@ -73,7 +72,7 @@ export async function startServer({dataDir, port = 9232, cdpPort}) {
   }
   async function status(ref, graphId) {
     const saved = await store.status(ref, graphId);
-    return {...saved, connection: adapter?.status() || {state: 'disabled'}, applied: applied(ref, saved.snapshot)};
+    return {...saved, applied: applied(ref, saved.snapshot)};
   }
   const server = http.createServer(async (request, response) => {
     response.setHeader('Cache-Control', 'no-store');
@@ -122,12 +121,11 @@ export async function startServer({dataDir, port = 9232, cdpPort}) {
       if (url.pathname === '/api/state') return json(await act({...body, chatRef: ref}));
       if (url.pathname === '/api/ack') return json(await acknowledge({...body, chatRef: ref}));
       if (url.pathname === '/api/show') {
-        if (!['summary', 'large'].includes(body.view)) throw failure('invalid-view', 'view는 summary 또는 large입니다.');
+        if (body.view !== 'large') throw failure('invalid-view', 'view는 large입니다.');
         const item = await store.activate(ref, body.graphId);
-        if (body.view === 'summary') await adapter?.showSummary(ref);
         const viewURL = new URL('/view', origin);
         for (const [key, value] of Object.entries({...ref, graphId: body.graphId})) viewURL.searchParams.set(key, value);
-        return json({graphId: body.graphId, revision: item.revision, ...(body.view === 'large' ? {url: viewURL.href} : {}), applied: applied(ref, item), connection: adapter?.status() || {state: 'disabled'}});
+        return json({graphId: body.graphId, revision: item.revision, url: viewURL.href, applied: applied(ref, item)});
       }
       throw failure('not-found', '명령 경로가 없습니다.', 404);
     } catch (error) {
@@ -137,17 +135,12 @@ export async function startServer({dataDir, port = 9232, cdpPort}) {
   });
   try {
     await new Promise((resolve, reject) => {server.once('error', reject); server.listen(port, '127.0.0.1', resolve);});
-    if (cdpPort) {
-      adapter = new CodexConnection({port: cdpPort, store, beginSession, invalidate, act, acknowledge});
-      adapter.start();
-    }
   } catch (error) {lock.close(); throw error;}
   return {
     port, dataDir: canonical,
     async close() {
       if (closing) return;
       closing = true;
-      await adapter?.stop();
       const closed = new Promise(resolve => server.close(resolve));
       server.closeAllConnections();
       await closed;

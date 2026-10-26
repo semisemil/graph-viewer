@@ -7,10 +7,10 @@ import {failure} from '../src/store.mjs';
 
 const help = `graph-viewer (Node.js 22 이상)
   validate <graph.json>
-  serve --data-dir <절대 경로> [--port 9232] [--cdp-port 9222]
+  serve --data-dir <절대 경로> [--port 9232]
   publish <graph.json> --thread <id> --expected-revision <n> [--host local] [--port 9232]
   status --thread <id> [--graph <id>] [--host local] [--port 9232]
-  show --thread <id> --graph <id> --view summary|large [--host local] [--port 9232]
+  show --thread <id> --graph <id> --view large [--host local] [--port 9232]
 큰 화면은 show 결과의 url을 Codex의 open_in_codex(browser)로 엽니다.
 저장 성공(committed)과 화면 적용(applied)은 별도 결과입니다.`;
 
@@ -18,7 +18,7 @@ async function main() {
   const [command, ...args] = process.argv.slice(2);
   if (!command || command === '--help' || command === 'help') {console.log(help); return;}
   const options = {}, positional = [];
-  const allowed = new Set(['--data-dir', '--port', '--cdp-port', '--thread', '--host', '--expected-revision', '--graph', '--view']);
+  const allowed = new Set(['--data-dir', '--port', '--thread', '--host', '--expected-revision', '--graph', '--view']);
   for (let i = 0; i < args.length; i++) {
     if (!args[i].startsWith('--')) {positional.push(args[i]); continue;}
     if (!allowed.has(args[i]) || args[i + 1] === undefined || args[i + 1].startsWith('--')) throw failure('invalid-option', `잘못된 옵션: ${args[i]}`);
@@ -40,7 +40,7 @@ async function main() {
   const port = portOption('--port', 9232);
   if (command === 'serve') {
     if (!options['--data-dir'] || !path.isAbsolute(options['--data-dir'])) throw failure('missing-data-dir', '--data-dir에 저장 폴더의 절대 경로를 지정하세요.');
-    const service = await startServer({port, dataDir: options['--data-dir'], cdpPort: options['--cdp-port'] ? portOption('--cdp-port') : undefined});
+    const service = await startServer({port, dataDir: options['--data-dir']});
     console.log(JSON.stringify({ready: true, port: service.port, dataDir: service.dataDir}));
     for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => service.close().then(() => process.exit(0), error => {console.error(error.message); process.exit(1);}));
     return;

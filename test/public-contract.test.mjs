@@ -35,6 +35,9 @@ test('CLI validates a new domain and rejects duplicate identities and missing re
   const service = await fixture(t, { start: false });
   const valid = await service.validate(researchGraph());
   assert.equal(valid.code, 0, valid.stderr);
+  const obsoleteOption = await service.cli('serve', '--cdp-port', '9222');
+  assert.notEqual(obsoleteOption.code, 0);
+  assert.equal(JSON.parse(obsoleteOption.stderr).error.code, 'invalid-option');
   assert.notEqual((await service.validate('{ malformed JSON')).code, 0);
   for (const mutate of [
     g => g.nodes.push({ ...g.nodes[0] }),
@@ -209,6 +212,10 @@ test('CLI reports an unregistered thread and returns a usable large-view URL', a
   assert.equal(page.status, 200);
   assert.match(page.headers.get('content-type'), /text\/html/);
   assert.match(await page.text(), /<html[\s>]/i);
+  const obsoleteView = await service.cli('show', '--thread', THREAD_A, '--graph', graph.graphId,
+    '--view', 'summary', '--port', String(service.port));
+  assert.notEqual(obsoleteView.code, 0);
+  assert.equal(JSON.parse(obsoleteView.stderr).error.code, 'invalid-view');
 });
 
 function chatRef(threadId) {

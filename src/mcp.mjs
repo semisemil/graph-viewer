@@ -136,7 +136,7 @@ serveStdio(factory => {
     return result({snapshot});
   });
   tool('open_graph', {
-    title: 'Graph Viewer', description: 'Open this chat’s saved graph in a separate native graph tab. Reopening restores saved selection, camera and search. No CDP is needed.',
+    title: 'Graph Viewer', description: 'Open this chat’s saved graph in a separate native graph tab. Reopening restores saved selection, camera and search.',
     inputSchema: optionalGraph, annotations: {...readOnly, readOnlyHint: false, idempotentHint: false},
     _meta: {ui: {resourceUri: uri, visibility: ['model']}, 'openai/ui': {entrypoints: [{type: 'thread'}]}},
   }, async (args, ref, {store, scope}) => {

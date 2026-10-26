@@ -22,7 +22,7 @@ const graph = {
   schemaVersion: 1, graphId: 'browser-check', title: '공개 그래프 동작 확인', kind: '임의 자료',
   nodes: [
     {id: 'root', type: '목표', label: '자료 살펴보기'},
-    {id: 'a', type: '확인', label: 'CDP 연결 성공', details: '전체 텍스트 <img src=x onerror=alert(1)>를 코드로 실행하지 않고 보여줍니다. '.repeat(5)},
+    {id: 'a', type: '확인', label: '연결 확인', details: '전체 텍스트 <img src=x onerror=alert(1)>를 코드로 실행하지 않고 보여줍니다. '.repeat(5)},
     {id: 'other', type: '다른 분기', label: '별도 탐색'},
     {id: 'c', type: '근거', label: '충분한 너비를 사용하는 노드 제목과 전체 내용을 확인하는 예시'},
     {id: 'end', type: '결론', label: '근거 확인'},

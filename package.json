@@ -11,7 +11,9 @@
   },
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "build:plugin": "node scripts/build-plugin.mjs"
+    "pretest": "node scripts/build-plugin.mjs",
+    "build:plugin": "node scripts/build-plugin.mjs",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.4.0",

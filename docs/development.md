@@ -1,5 +1,19 @@
 # 개발 안내
 
+개발은 `dev` 브랜치에서 진행합니다.
+
+| 브랜치 | 내용 |
+|---|---|
+| dev | 개발 소스, 테스트와 빌드 스크립트 |
+| main | 루트에 배치한 실행 플러그인과 사용자 문서 |
+
+```mermaid
+flowchart LR
+    Dev[dev: 소스와 테스트] --> Build[빌드와 검사]
+    Build --> Main[main: 루트 배포본]
+    Main --> Install[GitHub marketplace 설치]
+```
+
 ## 준비와 빌드
 
 소스 개발에는 Node.js 22.12 이상과 npm이 필요합니다.
@@ -7,13 +21,27 @@
 
 ```powershell
 npm ci --ignore-scripts
-npm run build:plugin
 npm test
 ```
 
+npm test는 먼저 플러그인을 빌드한 뒤 검사합니다.
+빌드만 실행하려면 npm run build:plugin을 사용합니다.
 빌드는 plugins/graph-viewer의 서버 번들, 렌더러, 실행기와 스킬을 갱신합니다.
 배포 폴더에 외부 node_modules는 필요하지 않습니다.
-이 폴더와 루트 .agents/plugins/marketplace.json이 marketplace 배포 대상입니다.
+이 생성 폴더는 dev 브랜치의 Git 추적에서 제외합니다.
+
+## 배포 브랜치 갱신
+
+dev의 변경을 커밋한 뒤 실행합니다.
+
+```powershell
+npm run release
+```
+
+이 명령은 플러그인을 빌드하고 검사한 뒤 main 브랜치에 배포 커밋을 만듭니다.
+현재 작업 폴더는 dev에 유지합니다.
+main에는 서버, 렌더러, 스킬과 문서를 배치하며 marketplace는 저장소 루트의 플러그인을 가리킵니다.
+원격 저장소로 올리는 작업은 별도로 진행합니다.
 
 ## 검사
 
