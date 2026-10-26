@@ -47,23 +47,35 @@
       .port{fill:#1c2228;stroke:#63788d;stroke-width:1.5}.connection.related .port{stroke:#a8d5fa}
       .edge-label{fill:#a7b5c2;font-size:10px;text-anchor:middle;paint-order:stroke;stroke:#141618;stroke-width:5px;stroke-linejoin:round}
       @keyframes edge-current{to{stroke-dashoffset:-52}}
-      .detail{min-height:65px;max-height:35%;overflow:auto;overflow-wrap:anywhere;white-space:pre-wrap;padding:11px 14px;border-top:1px solid #36393c;font-size:12px;line-height:1.6;color:#bdc6cb}.detail b{display:block;color:#f0f3f4}.source{display:block}.empty{position:absolute;inset:0;display:grid;place-items:center;color:#aeb9c2;pointer-events:none}.empty[hidden]{display:none}
+      .node-tooltip{position:absolute;z-index:3;width:360px;max-width:calc(100% - 24px);display:flex;flex-direction:column;border:1px solid color-mix(in srgb,var(--accent) 45%,#46505a);border-radius:14px;background:linear-gradient(150deg,#2b3237,#22272b 70%);box-shadow:0 16px 40px #0009,0 0 22px color-mix(in srgb,var(--accent) 12%,transparent);color:#c9d2d8;cursor:auto;animation:tooltip-in 140ms ease-out}
+      .node-tooltip[hidden]{display:none}.node-tooltip::after{content:'';position:absolute;width:9px;height:9px;background:#2a3035;transform:rotate(45deg);border:inherit}
+      .node-tooltip[data-side="right"]::after{left:-5px;top:var(--tip);border-right:0;border-top:0}.node-tooltip[data-side="left"]::after{right:-5px;top:var(--tip);border-left:0;border-bottom:0}
+      .node-tooltip[data-side="bottom"]::after{top:-5px;left:var(--tip);border-right:0;border-bottom:0}.node-tooltip[data-side="top"]::after{bottom:-5px;left:var(--tip);border-left:0;border-top:0}
+      .tooltip-scroll{min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#58636c transparent;padding:16px 18px;border-radius:13px;overflow-wrap:anywhere;user-select:text}
+      .tooltip-meta{display:flex;align-items:center;gap:8px;margin-bottom:9px;color:var(--accent);font-size:11px;font-weight:600}.tooltip-type{flex:1;min-width:0}.tooltip-type::before{content:'';display:inline-block;width:8px;height:8px;margin-right:7px;border-radius:2px;background:var(--accent)}
+      .tooltip-status{max-width:55%;padding:3px 7px;border-radius:5px;background:color-mix(in srgb,var(--accent) 10%,transparent);border:1px solid color-mix(in srgb,var(--accent) 24%,transparent);font-size:10px;line-height:1.4}
+      .tooltip-title{margin:0;color:#f2f5f7;font-size:17px;line-height:1.45;font-weight:600;letter-spacing:-.015em;white-space:pre-wrap}.tooltip-body{margin-top:11px;font-size:12px;line-height:1.75;white-space:pre-wrap}
+      .tooltip-sources{margin-top:14px;padding-top:11px;border-top:1px solid #ffffff14;display:grid;gap:9px}.tooltip-source-label{display:block;color:#d8e3ec;font-size:11px;font-weight:600}.tooltip-source-url{display:block;margin-top:3px;color:#94a7b7;font-size:11px;line-height:1.6}
+      @keyframes tooltip-in{from{opacity:0}to{opacity:1}}.empty{position:absolute;inset:0;display:grid;place-items:center;color:#aeb9c2;pointer-events:none}.empty[hidden]{display:none}
       .motion-off .edge-flow{display:none!important;animation:none!important}
-      @media(prefers-reduced-motion:reduce){.connection.related .edge-flow,.mini-connection.related .edge-flow{display:none;animation:none}.node,.node>rect:first-child,.edge{transition:none}}
-      ${compact ? 'header{padding:10px;gap:6px}strong{font-size:12px}input{font-size:11px;padding:4px 6px;width:110px}.legend{padding:6px 10px;gap:8px;max-height:56px}.detail{min-height:52px;padding:7px 10px;font-size:11px}.tools{bottom:7px;left:7px}.tools button{padding:3px 6px;min-width:24px}.zoom{padding:4px}.minimap{width:60px;height:116px;right:7px;bottom:7px;opacity:.3;pointer-events:all;transition:opacity 160ms ease}.minimap:hover,.minimap:focus-visible{opacity:1}.minimap:focus-visible{outline:2px solid #7fb5ff;outline-offset:2px}@media(prefers-reduced-motion:reduce){.minimap{transition:none}}' : ''}
-    </style><div class="shell"><header><strong></strong><input aria-label="노드 검색" placeholder="노드 검색"></header><div class="legend" aria-label="노드 유형"></div><div class="canvas"><svg class="graph" role="group"><defs></defs><g class="world"></g></svg><div class="empty" hidden>표시할 노드가 없습니다.</div><div class="tools"><button aria-label="확대">+</button><button aria-label="축소">−</button><button aria-label="전체 맞춤">맞춤</button><span class="zoom"></span></div><svg class="minimap" role="img" aria-label="그래프 미니맵" tabindex="0"></svg></div><div class="detail" aria-live="polite"></div></div>`;
+      @media(prefers-reduced-motion:reduce){.connection.related .edge-flow,.mini-connection.related .edge-flow{display:none;animation:none}.node,.node>rect:first-child,.edge{transition:none}.node-tooltip{animation:none}}
+      ${compact ? 'header{padding:10px;gap:6px}strong{font-size:12px}input{font-size:11px;padding:4px 6px;width:110px}.legend{padding:6px 10px;gap:8px;max-height:56px}.tooltip-scroll{padding:13px 14px}.tooltip-title{font-size:15px}.tools{bottom:7px;left:7px}.tools button{padding:3px 6px;min-width:24px}.zoom{padding:4px}.minimap{width:60px;height:116px;right:7px;bottom:7px;opacity:.3;pointer-events:all;transition:opacity 160ms ease}.minimap:hover,.minimap:focus-visible{opacity:1}.minimap:focus-visible{outline:2px solid #7fb5ff;outline-offset:2px}@media(prefers-reduced-motion:reduce){.minimap{transition:none}}' : ''}
+    </style><div class="shell"><header><strong></strong><input aria-label="노드 검색" placeholder="노드 검색"></header><div class="legend" aria-label="노드 유형"></div><div class="canvas"><svg class="graph" role="group"><defs></defs><g class="world"></g></svg><div class="empty" hidden>표시할 노드가 없습니다.</div><div class="tools"><button aria-label="확대">+</button><button aria-label="축소">−</button><button aria-label="전체 맞춤">맞춤</button><span class="zoom"></span></div><svg class="minimap" role="img" aria-label="그래프 미니맵" tabindex="0"></svg><div class="node-tooltip" id="${id}-tooltip" role="tooltip" hidden><div class="tooltip-scroll"></div></div></div></div>`;
 
     const shell = shadow.querySelector('.shell');
     const svg = shadow.querySelector('.graph');
     const world = shadow.querySelector('.world');
     const minimap = shadow.querySelector('.minimap');
-    const detail = shadow.querySelector('.detail');
+    const canvas = shadow.querySelector('.canvas');
+    const tooltip = shadow.querySelector('.node-tooltip');
+    const tooltipScroll = shadow.querySelector('.tooltip-scroll');
     const search = shadow.querySelector('input');
     const measure = document.createElement('canvas').getContext('2d');
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
-    let graph, layout, nodeMap, viewMap, viewport, graphSignature;
+    let graph, layout, nodeMap, viewMap, viewport, graphSignature, colors;
     let selectedNodeId = null, camera = null, query = '';
     let hovered = null, focused = null, drag = null;
+    let tooltipAnchor = null, tooltipHovered = false, showTimer = 0, hideTimer = 0;
     let frame = 0, target = null, interacting = false, destroyed = false;
     let nodeElements = [], miniNodes = [], connections = [], miniConnections = [];
 
@@ -85,6 +97,7 @@
       if (interacting) {
         emit({type: 'setCamera', camera: cameraCopy()});
         interaction(false);
+        if (focused) showTooltip();
       }
     }
     function stopAnimation() {
@@ -105,6 +118,7 @@
         const bottom = Math.max(top, Math.min(layout.height, (svg.clientHeight - ty) / camera.zoom));
         for (const [key, value] of Object.entries({x: left, y: top, width: right - left, height: bottom - top})) viewport.setAttribute(key, value);
       }
+      positionTooltip();
     }
     function moveTo(next, duration, local = true) {
       stopAnimation();
@@ -165,26 +179,110 @@
       const label = element(document, 'text', {class: className, x, y, fill: color, 'font-size': size, 'font-weight': weight});
       const parts = fitText(text, layout.cardWidth - x - 14, `${weight} ${size}px system-ui, sans-serif`, lines);
       parts.forEach((part, index) => label.append(element(document, 'tspan', {x, dy: index ? 19 : 0}, part)));
-      label.append(element(document, 'title', {}, text));
       node.append(label);
       return parts.length;
     }
-    function showDetails() {
-      const node = nodeMap.get(hovered || focused || selectedNodeId);
-      detail.replaceChildren();
-      if (!node) { detail.textContent = graph.nodes.length ? '노드를 선택하면 전체 내용을 볼 수 있습니다.' : ''; return; }
-      const heading = document.createElement('b');
-      heading.textContent = `${node.type} / ${node.label}`;
-      detail.append(heading);
-      if (node.status) { const status = document.createElement('div'); status.textContent = node.status; detail.append(status); }
-      if (node.details) detail.append(document.createTextNode(node.details));
-      for (const source of node.sources || []) {
-        const line = document.createElement('span');
-        line.className = 'source';
-        line.textContent = `${source.label}: ${source.href}`;
-        detail.append(line);
+    function hideTooltip() {
+      window.clearTimeout(showTimer);
+      window.clearTimeout(hideTimer);
+      tooltipAnchor?.removeAttribute('aria-describedby');
+      tooltipAnchor = null;
+      tooltipHovered = false;
+      tooltip.hidden = true;
+    }
+    function positionTooltip() {
+      if (tooltip.hidden || !tooltipAnchor || !camera) return;
+      const bounds = canvas.getBoundingClientRect();
+      const anchor = tooltipAnchor.querySelector('rect').getBoundingClientRect();
+      if (anchor.right <= bounds.left || anchor.left >= bounds.right || anchor.bottom <= bounds.top || anchor.top >= bounds.bottom) { hideTooltip(); return; }
+      const margin = 12, gap = 14;
+      const scrollTop = tooltipScroll.scrollTop;
+      const maxHeight = Math.max(0, Math.min(420, bounds.height - margin * 2));
+      tooltip.style.maxHeight = `${maxHeight}px`;
+      const width = tooltip.offsetWidth;
+      let height = tooltip.offsetHeight;
+      const centerX = (anchor.left + anchor.right) / 2 - bounds.left;
+      const centerY = (anchor.top + anchor.bottom) / 2 - bounds.top;
+      let x, y, side;
+      if (anchor.right - bounds.left + gap + width <= bounds.width - margin) {
+        side = 'right'; x = anchor.right - bounds.left + gap; y = centerY - height / 2;
+      } else if (anchor.left - bounds.left - gap - width >= margin) {
+        side = 'left'; x = anchor.left - bounds.left - gap - width; y = centerY - height / 2;
+      } else {
+        x = centerX - width / 2;
+        const above = anchor.top - bounds.top - gap - margin;
+        const below = bounds.bottom - anchor.bottom - gap - margin;
+        side = below >= height || below >= above ? 'bottom' : 'top';
+        tooltip.style.maxHeight = `${Math.min(maxHeight, Math.max(140, side === 'bottom' ? below : above))}px`;
+        height = tooltip.offsetHeight;
+        y = side === 'bottom' ? anchor.bottom - bounds.top + gap : anchor.top - bounds.top - gap - height;
+      }
+      x = Math.max(margin, Math.min(x, bounds.width - width - margin));
+      y = Math.max(margin, Math.min(y, bounds.height - height - margin));
+      tooltip.style.left = `${x}px`;
+      tooltip.style.top = `${y}px`;
+      tooltip.dataset.side = side;
+      const along = side === 'left' || side === 'right' ? centerY - y : centerX - x;
+      tooltip.style.setProperty('--tip', `${Math.max(16, Math.min(along, (side === 'left' || side === 'right' ? height : width) - 20))}px`);
+      tooltipScroll.scrollTop = scrollTop;
+    }
+    function showTooltip() {
+      window.clearTimeout(showTimer);
+      window.clearTimeout(hideTimer);
+      const node = nodeMap.get(hovered || focused);
+      if (!node || destroyed || drag) return;
+      if (tooltipAnchor?.dataset.id !== node.id) {
+        tooltipAnchor?.removeAttribute('aria-describedby');
+        tooltipAnchor = nodeElements.find(item => item.dataset.id === node.id);
+        tooltipAnchor.setAttribute('aria-describedby', tooltip.id);
+        tooltip.style.setProperty('--accent', colors.get(node.type));
+        tooltipScroll.replaceChildren();
+        const text = (tag, className, value) => { const item = document.createElement(tag); item.className = className; item.textContent = value; return item; };
+        const meta = document.createElement('div');
+        meta.className = 'tooltip-meta';
+        meta.append(text('span', 'tooltip-type', node.type));
+        if (node.status) meta.append(text('span', 'tooltip-status', node.status));
+        tooltipScroll.append(meta, text('h3', 'tooltip-title', node.label));
+        if (node.details) tooltipScroll.append(text('div', 'tooltip-body', node.details));
+        if (node.sources?.length) {
+          const sources = document.createElement('div');
+          sources.className = 'tooltip-sources';
+          for (const source of node.sources) {
+            const line = document.createElement('div');
+            line.append(text('span', 'tooltip-source-label', source.label), text('span', 'tooltip-source-url', source.href));
+            sources.append(line);
+          }
+          tooltipScroll.append(sources);
+        }
+        tooltipScroll.scrollTop = 0;
+      }
+      tooltip.hidden = false;
+      positionTooltip();
+    }
+    function requestTooltip(immediate = false) {
+      window.clearTimeout(showTimer);
+      window.clearTimeout(hideTimer);
+      showTimer = window.setTimeout(showTooltip, immediate || !tooltip.hidden ? 0 : 220);
+    }
+    function leaveTooltip() {
+      window.clearTimeout(showTimer);
+      window.clearTimeout(hideTimer);
+      hideTimer = window.setTimeout(() => {
+        if (tooltipHovered) return;
+        if (hovered || focused) showTooltip(); else hideTooltip();
+      }, 160);
+    }
+    function tooltipKeydown(event) {
+      if (tooltip.hidden) return;
+      if (event.key === 'Escape') {
+        event.preventDefault(); hovered = focused = null; hideTooltip();
+      } else if (shadow.activeElement === tooltipAnchor && ['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp'].includes(event.key)) {
+        event.preventDefault();
+        tooltipScroll.scrollTop += (event.key.endsWith('Down') ? 1 : -1) * (event.key.startsWith('Page') ? tooltipScroll.clientHeight * .8 : 40);
       }
     }
+    tooltip.addEventListener('pointerenter', () => { tooltipHovered = true; window.clearTimeout(hideTimer); });
+    tooltip.addEventListener('pointerleave', () => { tooltipHovered = false; leaveTooltip(); });
     function updateHighlights() {
       const related = selectedNodeId ? model.connectedPath(graph, selectedNodeId) : {nodes: new Set(), edges: new Set()};
       const needle = query.trim().toLocaleLowerCase();
@@ -205,12 +303,13 @@
         connection.classList.toggle('related', active);
         connection.querySelector('.edge')?.classList.toggle('related', active);
       }
-      showDetails();
+      positionTooltip();
     }
     function choose(nodeId) {
       interaction(true);
       selectedNodeId = nodeId;
       updateHighlights();
+      showTooltip();
       emit({type: 'selectNode', nodeId});
       const node = viewMap.get(nodeId);
       moveTo({x: node.x + layout.cardWidth / 2, y: node.y + layout.cardHeight / 2, zoom: Math.max(camera?.zoom || 0, compact ? .9 : 1)}, 360);
@@ -246,7 +345,7 @@
       shadow.querySelector('.empty').hidden = graph.nodes.length !== 0;
       const legend = shadow.querySelector('.legend');
       legend.replaceChildren();
-      const colors = new Map();
+      colors = new Map();
       for (const node of graph.nodes) if (!colors.has(node.type)) {
         const color = palette[colors.size % palette.length];
         colors.set(node.type, color);
@@ -286,13 +385,12 @@
         const titleLines = cardText(node, 'node-title', data.label, 14, compact ? 45 : 55, compact ? 16 : 15, '#f0f2f4', compact ? 2 : 1, 600);
         cardText(node, 'node-body', data.details || '', 14, compact ? (titleLines > 1 ? 83 : 66) : 80, compact ? 11 : 12, '#aeb9c2', compact ? 1 : 2);
         if (data.status) cardText(node, 'node-status', data.status, 14, h - 14, 11, color, 1);
-        node.append(element(document, 'title', {}, [data.type, data.label, data.details, data.status].filter(Boolean).join('\n')));
         node.addEventListener('click', () => choose(data.id));
-        node.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); choose(data.id); } });
-        node.addEventListener('pointerenter', () => { hovered = data.id; showDetails(); });
-        node.addEventListener('pointerleave', () => { hovered = null; showDetails(); });
-        node.addEventListener('focus', () => { focused = data.id; showDetails(); });
-        node.addEventListener('blur', () => { focused = null; showDetails(); });
+        node.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); focused = data.id; choose(data.id); } });
+        node.addEventListener('pointerenter', () => { hovered = data.id; requestTooltip(); });
+        node.addEventListener('pointerleave', () => { hovered = null; leaveTooltip(); });
+        node.addEventListener('focus', () => { if (node.matches(':focus-visible')) { focused = data.id; hovered = null; requestTooltip(true); } });
+        node.addEventListener('blur', () => { focused = null; leaveTooltip(); });
         world.append(node); nodeElements.push(node);
         const mini = element(document, 'rect', {class: 'mini-node', 'data-id': data.id, x: data.x, y: data.y, width: w, height: h, rx: 12, fill: color});
         minimap.append(mini); miniNodes.push(mini);
@@ -316,6 +414,7 @@
       const changedId = graph?.graphId !== next.graphId;
       if (changedGraph) {
         stopAnimation();
+        hideTooltip();
         drag = null;
         interaction(false);
       }
@@ -347,6 +446,7 @@
     }
     svg.addEventListener('pointerdown', event => {
       if (event.button !== 0 || event.target.closest('.node')) return;
+      hovered = focused = null; hideTooltip();
       if (!camera) fit();
       if (!camera) return;
       stopAnimation(); interaction(true);
@@ -371,6 +471,7 @@
     search.addEventListener('input', () => { query = search.value; updateHighlights(); emit({type: 'setQuery', query}); });
     function visibilityChanged() {
       shell.classList.toggle('motion-off', document.hidden);
+      if (document.hidden) { hovered = focused = null; hideTooltip(); }
       if (document.hidden && target) moveTo(target, 0);
     }
     function motionChanged() { if (reduced.matches && target) moveTo(target, 0); }
@@ -379,6 +480,7 @@
     try { update(options.graph, options.state); }
     catch (error) { host.remove(); throw error; }
     document.addEventListener('visibilitychange', visibilityChanged);
+    document.addEventListener('keydown', tooltipKeydown);
     reduced.addEventListener('change', motionChanged);
     const resize = new window.ResizeObserver(() => { if (camera) transform(); else fit(); });
     resize.observe(svg);
@@ -389,8 +491,10 @@
         if (destroyed) return;
         destroyed = true;
         stopAnimation();
+        hideTooltip();
         resize.disconnect();
         document.removeEventListener('visibilitychange', visibilityChanged);
+        document.removeEventListener('keydown', tooltipKeydown);
         reduced.removeEventListener('change', motionChanged);
         interaction(false);
         host.remove();
