@@ -1,0 +1,16 @@
+# Dependencies and local development records
+/node_modules/
+/.graph-viewer/
+/.local/
+
+# Environment secrets; keep documented sample configurations
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Local desktop captures; publish documentation images under docs/images/
+/*.png
+
+# Runtime logs
+*.log

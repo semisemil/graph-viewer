@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "graph-panel": {
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "start.ps1"
+      ],
+      "cwd": ".",
+      "env": {
+        "CODEX_MCP_PROTOCOL_VERSION": "2026-07-28"
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "graphId": "graph-panel-system",
+  "kind": "architecture",
+  "title": "그래프 패널 구조",
+  "nodes": [
+    {"id": "skill", "type": "인터페이스", "label": "그래프 사용 스킬", "details": "요청한 자료를 공통 JSON으로 구성하고 명령을 실행합니다.", "status": "공통 진입점"},
+    {"id": "command", "type": "인터페이스", "label": "그래프 명령", "details": "validate, publish, status, show 명령으로 그래프를 전달합니다."},
+    {"id": "service", "type": "전달", "label": "로컬 전달 서비스", "details": "검증된 그래프와 채팅별 상태를 저장하고 두 화면에 전달합니다."},
+    {"id": "engine", "type": "표시", "label": "독립 HTML 그래프 엔진", "details": "자료의 원본 형식이나 Codex 내부 구조를 몰라도 노드와 연결을 표시합니다."},
+    {"id": "summary", "type": "화면", "label": "Codex 요약 뷰", "details": "CDP 연결부가 현재 채팅을 확인해 세로 그래프를 붙입니다."},
+    {"id": "large", "type": "화면", "label": "큰 화면", "details": "같은 엔진을 실제 HTML 페이지로 열어 넓게 탐색합니다."},
+    {"id": "architecture", "type": "후속 연결", "label": "Architecture Memory", "details": "기존 문서의 구조와 출처를 공통 JSON으로 변환할 연결부입니다.", "status": "후속 작업"},
+    {"id": "exploration", "type": "후속 연결", "label": "공개 탐색 기록", "details": "명시적으로 작성한 목표, 관찰, 실행 결과와 결론을 연결할 수 있습니다.", "status": "후속 작업"}
+  ],
+  "edges": [
+    {"id": "skill-command", "source": "skill", "target": "command", "label": "호출"},
+    {"id": "command-service", "source": "command", "target": "service", "label": "전달"},
+    {"id": "service-engine", "source": "service", "target": "engine", "label": "표시 데이터"},
+    {"id": "engine-summary", "source": "engine", "target": "summary", "label": "세로 배치"},
+    {"id": "engine-large", "source": "engine", "target": "large", "label": "가로 배치"},
+    {"id": "architecture-command", "source": "architecture", "target": "command", "label": "공통 JSON"},
+    {"id": "exploration-command", "source": "exploration", "target": "command", "label": "공통 JSON"}
+  ]
+}
