@@ -35,7 +35,7 @@ Graph Viewer는 이런 관계를 한 화면에 표시합니다.
 GitHub marketplace를 등록한 뒤 플러그인을 설치합니다.
 
 ```powershell
-codex plugin marketplace add OWNER/REPO
+codex plugin marketplace add OWNER/REPO --ref main
 codex plugin add graph-viewer@graph-viewer
 ```
 
