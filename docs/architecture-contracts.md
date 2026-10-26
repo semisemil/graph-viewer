@@ -1,6 +1,8 @@
 # 명령과 데이터 계약
 
 공통 엔진과 기존 HTTP/CLI 연결의 호출 계약이다.
+HTTP 서버와 CLI는 dev 브랜치에서 제공한다.
+main 브랜치는 MCP 플러그인을 배포하며, HTTP 서버와 CLI를 포함하지 않는다.
 MCP 실행 구조는 [아키텍처](architecture.md)를 참고한다.
 그래프 필드의 정의와 예제는 [그래프 JSON 형식](../skills/graph-viewer/references/graph-format.md)에 있다.
 

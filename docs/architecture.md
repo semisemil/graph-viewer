@@ -5,6 +5,9 @@ Graph Viewer는 입력 자료, 표시 엔진과 Codex 연결부로 구성된다.
 
 ## 구성과 책임
 
+아래 구현 경로는 dev 브랜치의 소스를 기준으로 한다.
+main 브랜치의 src/mcp.mjs는 MCP 서버, Mermaid 변환과 저장소를 포함한 실행 번들이다.
+
 ```mermaid
 flowchart LR
     Agent[에이전트와 사용 스킬] -->|JSON 또는 Mermaid| MCP[로컬 MCP 서버]
