@@ -1,9 +1,14 @@
 # 설치와 연결
 
-Windows Codex Desktop의 플러그인에서 Graph Viewer marketplace의 그래프를 설치한다.
-저장소의 .agents/plugins/marketplace.json이 실행 가능한 plugins/graph-panel을 가리킨다.
-저장소를 프로젝트로 연 뒤 Codex를 다시 열면 프로젝트 marketplace가 표시된다.
-프로젝트 marketplace와 GitHub 저장소 기반 등록을 지원한다.
+GitHub marketplace를 등록하고 플러그인을 설치한다.
+
+```powershell
+codex plugin marketplace add OWNER/REPO
+codex plugin add graph-panel@graph-panel
+```
+
+OWNER/REPO는 공개 저장소가 정해지면 실제 경로로 교체한다.
+설치한 플러그인이 표시되지 않으면 Codex를 다시 연다.
 
 Codex는 평소 아이콘으로 실행한다.
 앱이 stdio MCP 프로세스를 관리한다.

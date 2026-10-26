@@ -32,15 +32,16 @@ Graph Viewer는 이런 관계를 한 화면에 표시합니다.
 
 ## 설치
 
-1. 저장소를 내려받아 Codex에서 프로젝트로 엽니다.
-2. Codex를 다시 열고 **플러그인**에서 이 프로젝트의 **Graph Viewer** marketplace를 선택합니다.
-3. **그래프** 플러그인을 설치합니다.
+GitHub marketplace를 등록한 뒤 플러그인을 설치합니다.
 
-저장소에는 실행 가능한 플러그인이 포함되어 있습니다.
-별도 빌드나 Codex CLI 설치는 필요하지 않습니다.
-실행기는 Codex에 포함된 Node를 먼저 사용합니다.
+```powershell
+codex plugin marketplace add OWNER/REPO
+codex plugin add graph-panel@graph-panel
+```
 
-프로젝트 marketplace와 GitHub 저장소 기반 배포는 [Codex 공식 플러그인 문서](https://developers.openai.com/plugins/build/plugins)의 설치 방식을 사용합니다.
+`OWNER/REPO`는 공개 저장소가 정해지면 실제 경로로 교체합니다.
+설치한 플러그인이 표시되지 않으면 Codex를 다시 엽니다.
+명령의 사용법은 [Codex 공식 설치 안내](https://learn.chatgpt.com/docs/developer-commands#codex-plugin-marketplace)를 참고하세요.
 
 ## 사용법
 
