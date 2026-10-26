@@ -9,11 +9,12 @@
     html,body{height:100%;margin:0;background:light-dark(#f2f5f8,#141618);color:light-dark(#20303e,#eef0f0);font:13px system-ui,sans-serif}
     body{display:flex;flex-direction:column}
     header{display:flex;align-items:center;gap:12px;padding:9px 12px;border-bottom:1px solid light-dark(#dce3ea,#36393c)}
+    header[hidden]{display:none}
     #status{flex:1;min-width:0;overflow-wrap:anywhere}
     #status[data-error="true"]{color:light-dark(#a34b0c,#ffbf80)}
     #graph{flex:1;min-height:280px}
-    button{padding:6px 10px;color:inherit;background:light-dark(#fff,#282c2f);border:1px solid light-dark(#c4cfd9,#4a5054);border-radius:6px;cursor:pointer}
-    button:focus-visible{outline:2px solid light-dark(#2563eb,#7fb5ff)}
+    button{min-height:32px;padding:6px 12px;color:inherit;background:light-dark(#fff,#282c2f);border:1px solid light-dark(#c4cfd9,#4a5054);border-radius:8px;font:inherit;font-size:12px;cursor:pointer}
+    button:hover{background:light-dark(#eaf0f6,#363e43)}button:focus-visible{outline:2px solid light-dark(#2563eb,#7fb5ff);outline-offset:2px}
   </style>
 </head>
 <body>
@@ -22,11 +23,11 @@
   <!-- GRAPH_ENGINE -->
   <script>
     'use strict';
-    const label=document.getElementById('status'), container=document.getElementById('graph'), retry=document.getElementById('retry');
+    const label=document.getElementById('status'), connection=label.parentElement, container=document.getElementById('graph'), retry=document.getElementById('retry');
     const pending=new Map(), openings=[];
     let seq=0, ready=false, displayMode, scope, sessionId, snapshot, view, hostTheme, interacting=false;
-    let actions=[], running=false, stopped=false, stale=false, timer, reported='', saving=false;
-    function message(text,error=false){label.textContent=text;label.dataset.error=String(error);}
+    let actions=[], running=false, stopped=false, stale=false, timer, reported='';
+    function message(text,error=false){label.textContent=text;label.dataset.error=String(error);connection.hidden=!text;}
     function sameScope(a,b){return a?.hostId===b?.hostId && a?.threadId===b?.threadId && (a?.projectPath || null)===(b?.projectPath || null);}
     function request(method,params){
       return new Promise((resolve,reject)=>{
@@ -42,10 +43,6 @@
       return response;
     }
     function localState(item){return {selectedNodeId:item.state.selectedNodeId,...item.state.views.large};}
-    function savedMessage(){
-      if(!snapshot)return;
-      message(snapshot.graph.title+' / 버전 '+snapshot.revision+(actions.length || saving?' / 저장 중':' / 저장됨'));
-    }
     function apply(next,force=false){
       if(snapshot && next.graph.graphId===snapshot.graph.graphId && (next.revision<snapshot.revision || next.revision===snapshot.revision && next.stateRevision<snapshot.stateRevision))return;
       const changed=!snapshot || next.graph.graphId!==snapshot.graph.graphId || next.revision!==snapshot.revision;
@@ -61,14 +58,14 @@
             const last=actions.at(-1);
             if(last && !last.sending && last.action.type===action.type)actions[actions.length-1]=queued;
             else actions.push(queued);
-            savedMessage();schedule(0);
+            schedule(0);
           },
           onInteraction(value){interacting=value;if(!value)schedule(0);}
         });
         globalThis.graphPanelView=view;
       }else view.update(next.graph,force || changed || !interacting && !actions.length ? localState(next):undefined);
       document.title=next.graph.title;
-      savedMessage();
+      message('');
     }
     function schedule(ms=1000){
       clearTimeout(timer);
@@ -99,7 +96,7 @@
       while(actions.length){
         const queued=actions[0];
         if(queued.graphId!==snapshot.graph.graphId || queued.revision!==snapshot.revision){actions.shift();continue;}
-        queued.sending=true;saving=true;savedMessage();
+        queued.sending=true;
         let response;
         try{response=await call(binding,{op:'action',graphId:queued.graphId,revision:queued.revision,expectedStateRevision:snapshot.stateRevision,action:queued.action});}
         catch(error){
@@ -107,11 +104,10 @@
             actions=[];
             const latest=await call(binding,{op:'sync'});
             apply(latest._meta.graphPanel.snapshot,true);
-            message(snapshot.graph.title+' / 최신 상태를 불러왔습니다.');
             return;
           }
           throw error;
-        }finally{saving=false;}
+        }
         if(actions[0]===queued)actions.shift();
         apply(response._meta.graphPanel.snapshot);
       }
@@ -122,7 +118,7 @@
         await call(binding,{op:'ack',graphId:snapshot.graph.graphId,revision:snapshot.revision,stateRevision:snapshot.stateRevision,displayMode});
         reported=report;
       }
-      savedMessage();
+      message('');retry.hidden=true;
     }
     async function loop(){
       if(running || stopped || !ready || displayMode!=='fullscreen' || document.hidden)return;
@@ -138,7 +134,7 @@
       displayMode=mode;document.body.dataset.hostDisplayMode=mode || 'unknown';
       container.hidden=mode!=='fullscreen' || !view;
       if(mode==='fullscreen')schedule(0);
-      else message('그래프는 별도 탭에서 표시합니다. 현재 모드: '+(mode || '미확인'));
+      else message('그래프를 별도 탭에서 열어 주세요.');
     }
     function applyHostTheme(theme){
       if(theme==='light' || theme==='dark'){

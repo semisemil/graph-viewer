@@ -33,6 +33,6 @@ description: Create and update interactive graphs from Mermaid flowcharts or JSO
 committed:true는 저장 완료, requested:true는 탭 열기 요청이다.
 graph_status.lastReport는 UI가 마지막으로 적용했다고 보고한 버전이다.
 실제 화면 확인이 필요하면 그래프 탭의 노드 렌더링을 확인한다.
-선택과 탐색 위치는 화면에 저장됨이 표시된 뒤 재열기에 복구된다.
+선택과 탐색 위치는 자동으로 저장되며, 다시 열 때 복구된다.
 
 도구가 없거나 missing-chat-context가 발생하면 [설치와 연결](references/installation.md)을 확인한다.
