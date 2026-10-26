@@ -16,7 +16,7 @@ async function browserFixture(t, { initialOrder = 'after' } = {}) {
   await publish(client, graph);
   const opened = await client.call('open_graph', { graphId: graph.graphId });
   success(opened);
-  const { contents } = await client.request('resources/read', { uri: 'ui://graph-panel/graph-v2.html' });
+  const { contents } = await client.request('resources/read', { uri: 'ui://graph-viewer/graph-v2.html' });
   const { chromium } = createRequire(import.meta.url)(packagePath);
   const browser = await chromium.launch(browserOptions);
   t.after(() => browser.close());

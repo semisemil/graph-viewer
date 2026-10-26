@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "graph-panel": {
+    "graph-viewer": {
       "command": "powershell.exe",
       "args": [
         "-NoProfile",

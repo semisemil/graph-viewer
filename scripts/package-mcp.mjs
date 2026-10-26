@@ -14,13 +14,13 @@ if (options['--data-dir'] && !path.isAbsolute(options['--data-dir'])) throw new 
 if (options['--log'] && !path.isAbsolute(options['--log'])) throw new Error('--log에 절대 경로가 필요합니다.');
 const output=path.resolve(options['--output']);
 try {await stat(output);throw new Error('기존 출력 폴더를 덮어쓰지 않습니다: '+output);} catch(error) {if(error.code!=='ENOENT')throw error;}
-const plugin=path.join(output,'plugins','graph-panel');
-await cp(path.join(root,'plugins','graph-panel'),plugin,{recursive:true});
+const plugin=path.join(output,'plugins','graph-viewer');
+await cp(path.join(root,'plugins','graph-viewer'),plugin,{recursive:true});
 await mkdir(path.join(output,'.agents','plugins'),{recursive:true});
 const json=async(file,value)=>writeFile(file,JSON.stringify(value,null,2)+'\n');
 const config=JSON.parse(await readFile(path.join(plugin,'.mcp.json'),'utf8'));
-if (options['--data-dir']) config.mcpServers['graph-panel'].env.GRAPH_PANEL_DATA_DIR=options['--data-dir'];
-if (options['--log']) config.mcpServers['graph-panel'].env.GRAPH_PANEL_LOG=options['--log'];
+if (options['--data-dir']) config.mcpServers['graph-viewer'].env.GRAPH_PANEL_DATA_DIR=options['--data-dir'];
+if (options['--log']) config.mcpServers['graph-viewer'].env.GRAPH_PANEL_LOG=options['--log'];
 await json(path.join(plugin,'.mcp.json'),config);
 await cp(path.join(root,'.agents','plugins','marketplace.json'),path.join(output,'.agents','plugins','marketplace.json'));
 console.log(JSON.stringify({output,plugin,dataDir:options['--data-dir']}));

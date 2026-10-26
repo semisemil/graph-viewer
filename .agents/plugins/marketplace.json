@@ -1,11 +1,19 @@
 {
-  "name": "graph-panel",
-  "interface": {"displayName": "Graph Viewer"},
+  "name": "graph-viewer",
+  "interface": {
+    "displayName": "Graph Viewer"
+  },
   "plugins": [
     {
-      "name": "graph-panel",
-      "source": {"source": "local", "path": "./plugins/graph-panel"},
-      "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
+      "name": "graph-viewer",
+      "source": {
+        "source": "local",
+        "path": "./plugins/graph-viewer"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
       "category": "Productivity"
     }
   ]

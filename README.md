@@ -36,7 +36,7 @@ GitHub marketplace를 등록한 뒤 플러그인을 설치합니다.
 
 ```powershell
 codex plugin marketplace add OWNER/REPO
-codex plugin add graph-panel@graph-panel
+codex plugin add graph-viewer@graph-viewer
 ```
 
 `OWNER/REPO`는 공개 저장소가 정해지면 실제 경로로 교체합니다.
@@ -48,7 +48,7 @@ codex plugin add graph-panel@graph-panel
 설치한 스킬에 그래프 생성을 요청합니다.
 
 ```text
-$graph-panel:graph-panel
+$graph-viewer:graph-viewer
 이 프로젝트의 주요 모듈과 의존관계를 그래프로 보여줘.
 ```
 
@@ -76,7 +76,7 @@ flowchart LR
 
 `flowchart`와 `graph`의 노드, 연결, 라벨을 읽어 뷰어의 카드와 선으로 표시합니다.
 Mermaid의 도형, 스타일과 그룹 테두리는 그대로 재현하지 않습니다.
-상세 설명, 상태와 출처가 필요하면 [그래프 JSON 형식](skills/graph-panel/references/graph-format.md)을 사용합니다.
+상세 설명, 상태와 출처가 필요하면 [그래프 JSON 형식](skills/graph-viewer/references/graph-format.md)을 사용합니다.
 
 ## 💾 저장 위치
 
@@ -100,5 +100,5 @@ Mermaid의 도형, 스타일과 그룹 테두리는 그대로 재현하지 않�
 표시 엔진은 MCP와 분리되어 자체 HTML 화면에서도 사용할 수 있습니다.
 
 - [아키텍처](docs/architecture.md)
-- [에이전트용 사용 스킬](skills/graph-panel/SKILL.md)
-- [그래프 JSON 형식](skills/graph-panel/references/graph-format.md)
+- [에이전트용 사용 스킬](skills/graph-viewer/SKILL.md)
+- [그래프 JSON 형식](skills/graph-viewer/references/graph-format.md)

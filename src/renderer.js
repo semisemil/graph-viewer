@@ -17,9 +17,9 @@
     const window = document.defaultView;
     const model = root.GraphModel;
     const compact = !!options.compact;
-    const id = `graph-panel-${++sequence}`;
+    const id = `graph-viewer-${++sequence}`;
     const host = document.createElement('div');
-    host.className = 'graph-panel';
+    host.className = 'graph-viewer';
     host.style.cssText = 'display:block;width:100%;height:100%;min-height:0';
     const shadow = host.attachShadow({mode: 'open'});
     shadow.innerHTML = `<style>

@@ -4,7 +4,7 @@ GitHub marketplace를 등록하고 플러그인을 설치한다.
 
 ```powershell
 codex plugin marketplace add OWNER/REPO
-codex plugin add graph-panel@graph-panel
+codex plugin add graph-viewer@graph-viewer
 ```
 
 OWNER/REPO는 공개 저장소가 정해지면 실제 경로로 교체한다.

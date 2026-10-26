@@ -5,7 +5,7 @@ import GraphModel from '../src/model.js';
 import {startServer} from '../src/server.mjs';
 import {failure} from '../src/store.mjs';
 
-const help = `graph-panel (Node.js 22 이상)
+const help = `graph-viewer (Node.js 22 이상)
   validate <graph.json>
   serve --data-dir <절대 경로> [--port 9232] [--cdp-port 9222]
   publish <graph.json> --thread <id> --expected-revision <n> [--host local] [--port 9232]

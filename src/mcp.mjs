@@ -28,7 +28,7 @@ async function storage(projectPath) {
   })().catch(error => {stores.delete(key); throw error;}));
   return {store: await stores.get(key), dataDir, projectPath: root};
 }
-const uri = 'ui://graph-panel/graph-v2.html';
+const uri = 'ui://graph-viewer/graph-v2.html';
 const logFile = process.env.GRAPH_PANEL_LOG;
 async function log(event) {
   if (!logFile) return;
@@ -88,7 +88,7 @@ transport.send = async message => {
 };
 serveStdio(factory => {
   const protocolVersion = () => factory.era === 'modern' ? '2026-07-28' : negotiatedVersion;
-  const server = new McpServer({name: 'graph-panel', version: '1.1.0'}, {
+  const server = new McpServer({name: 'graph-viewer', version: '1.1.0'}, {
     capabilities: {extensions: {'io.modelcontextprotocol/ui': {}}},
     instructions: 'Pass the current project absolute path as projectPath. Use graph_publish with JSON or Mermaid, then open_graph. Updates do not open another tab. Chat identity comes from the host.',
   });
@@ -136,7 +136,7 @@ serveStdio(factory => {
     return result({snapshot});
   });
   tool('open_graph', {
-    title: '그래프', description: 'Open this chat’s saved graph in a separate native graph tab. Reopening restores saved selection, camera and search. No CDP is needed.',
+    title: 'Graph Viewer', description: 'Open this chat’s saved graph in a separate native graph tab. Reopening restores saved selection, camera and search. No CDP is needed.',
     inputSchema: optionalGraph, annotations: {...readOnly, readOnlyHint: false, idempotentHint: false},
     _meta: {ui: {resourceUri: uri, visibility: ['model']}, 'openai/ui': {entrypoints: [{type: 'thread'}]}},
   }, async (args, ref, {store, scope}) => {
@@ -165,7 +165,7 @@ serveStdio(factory => {
     const saved = await store.action(ref, {...args, view: 'large', nativeSessionId: args.sessionId}, () => {});
     return result({committed: saved.committed}, {scope, sessionId: args.sessionId, snapshot: saved.snapshot});
   });
-  server.registerResource('graph-viewer', uri, {title: '그래프', mimeType: 'text/html;profile=mcp-app'}, async resource => ({contents: [{
+  server.registerResource('graph-viewer', uri, {title: 'Graph Viewer', mimeType: 'text/html;profile=mcp-app'}, async resource => ({contents: [{
     uri: resource.href, mimeType: 'text/html;profile=mcp-app', text: await viewer(),
     _meta: {ui: {csp: {connectDomains: [], resourceDomains: []}}, 'openai/ui': {availableDisplayModes: ['fullscreen']}},
   }]}));

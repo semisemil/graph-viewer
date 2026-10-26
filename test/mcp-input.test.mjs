@@ -61,10 +61,10 @@ test('project-local storage separates the same chat and graph and restores its U
 
 test('the distributed plugin starts with Codex bundled Node when Node is absent from PATH', {timeout: 30000}, async t => {
   const f = await fixture(t), plugin = path.join(f.root, '배포 플러그인 with spaces');
-  await cp(path.join(ROOT, 'plugins', 'graph-panel'), plugin, {recursive: true});
+  await cp(path.join(ROOT, 'plugins', 'graph-viewer'), plugin, {recursive: true});
   const config = JSON.parse(await readFile(path.join(plugin, '.mcp.json'), 'utf8'));
-  assert.equal(config.mcpServers['graph-panel'].command, 'powershell.exe');
-  assert.equal(config.mcpServers['graph-panel'].env.GRAPH_PANEL_DATA_DIR, undefined);
+  assert.equal(config.mcpServers['graph-viewer'].command, 'powershell.exe');
+  assert.equal(config.mcpServers['graph-viewer'].env.GRAPH_PANEL_DATA_DIR, undefined);
   const projectPath = path.join(f.root, '사용자 프로젝트');
   await mkdir(projectPath);
   const client = await f.start(path.join(plugin, 'start.ps1'), plugin, {

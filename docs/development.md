@@ -11,7 +11,7 @@ npm run build:plugin
 npm test
 ```
 
-빌드는 plugins/graph-panel의 서버 번들, 렌더러, 실행기와 스킬을 갱신합니다.
+빌드는 plugins/graph-viewer의 서버 번들, 렌더러, 실행기와 스킬을 갱신합니다.
 배포 폴더에 외부 node_modules는 필요하지 않습니다.
 이 폴더와 루트 .agents/plugins/marketplace.json이 marketplace 배포 대상입니다.
 

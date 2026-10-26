@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFile, rename, writeFile } from 'node:fs/promises';
+import { readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { test } from 'node:test';
 import { promisify } from 'node:util';
@@ -196,7 +196,7 @@ test('modern discovery exposes model and app tools separately and returns a self
     assert.deepEqual(byName.get(name)._meta.ui.visibility, ['model']);
   }
   assert.deepEqual(byName.get('graph_view')._meta.ui.visibility, ['app']);
-  const uri = 'ui://graph-panel/graph-v2.html';
+  const uri = 'ui://graph-viewer/graph-v2.html';
   assert.equal(byName.get('open_graph')._meta.ui.resourceUri, uri);
   for (const name of ['graph_publish', 'graph_status', 'graph_read', 'graph_view']) {
     assert.equal(byName.get(name)._meta.ui.resourceUri, undefined);
@@ -230,8 +230,14 @@ test('a generated package runs after moving to a directory with spaces and Korea
     cwd: ROOT, windowsHide: true, timeout: 90000, maxBuffer: 1024 * 1024,
   });
   await rename(output, moved);
-  const plugin = path.join(moved, 'plugins', 'graph-panel');
+  const plugin = path.join(moved, 'plugins', 'graph-viewer');
   const config = JSON.parse(await readFile(path.join(plugin, '.mcp.json'), 'utf8'));
+  const manifest = JSON.parse(await readFile(path.join(plugin, '.codex-plugin', 'plugin.json'), 'utf8'));
+  assert.equal(manifest.name, 'graph-viewer');
+  assert.equal(manifest.interface.displayName, 'Graph Viewer');
+  assert.deepEqual(Object.keys(config.mcpServers), ['graph-viewer']);
+  assert.deepEqual(await readdir(path.join(plugin, 'skills')), ['graph-viewer']);
+  assert.match(await readFile(path.join(plugin, 'skills', 'graph-viewer', 'SKILL.md'), 'utf8'), /^---\r?\nname: graph-viewer\r?\n/);
   assert.doesNotMatch(JSON.stringify(config), /C:[\\/]graph-viewer/i);
   const client = await f.start(path.join(plugin, 'server.mjs'), plugin, {
     modern: true,
@@ -241,7 +247,7 @@ test('a generated package runs after moving to a directory with spaces and Korea
   await publish(client, graph);
   const panel = await openGraph(client, graph.graphId);
   assert.deepEqual(panel.snapshot.graph, graph);
-  const { contents } = await client.request('resources/read', { uri: 'ui://graph-panel/graph-v2.html' });
+  const { contents } = await client.request('resources/read', { uri: 'ui://graph-viewer/graph-v2.html' });
   assert.match(contents[0].text, /<html[\s>]/i);
   assert.doesNotMatch(contents[0].text, /C:[\\/]graph-viewer/i);
   success(await client.call('graph_publish', {mermaid: 'flowchart LR\n A[이동 후] --> B[Mermaid]', graphId: 'portable-mermaid', expectedRevision: 0}));

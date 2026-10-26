@@ -1,5 +1,5 @@
 {
-  "name": "graph-panel",
+  "name": "graph-viewer",
   "version": "1.1.0",
   "private": true,
   "description": "Independent graph viewer and chat-scoped Codex MCP extension",
@@ -7,7 +7,7 @@
     "node": ">=22.12"
   },
   "bin": {
-    "graph-panel": "bin/graph.mjs"
+    "graph-viewer": "bin/graph.mjs"
   },
   "scripts": {
     "test": "node --test test/*.test.mjs",

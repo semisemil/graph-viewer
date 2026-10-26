@@ -1,11 +1,11 @@
 ---
-name: graph-panel
+name: graph-viewer
 description: Create and update interactive graphs from Mermaid flowcharts or JSON, including architecture and public investigation records in Codex.
 ---
 
-# 그래프 패널
+# Graph Viewer
 
-설치된 graph-panel MCP 도구로 그래프를 저장하고 그래프 탭을 연다.
+설치된 graph-viewer MCP 도구로 그래프를 저장하고 그래프 탭을 연다.
 모든 모델 도구 호출에 **현재 작업 프로젝트의 절대 경로인 projectPath**를 전달한다.
 자료와 보기 상태는 그 프로젝트의 .graph-viewer에 저장된다.
 

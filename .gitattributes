@@ -1,5 +1,5 @@
 * text=auto
-plugins/graph-panel/** linguist-generated=true
-plugins/graph-panel/src/mcp.mjs -diff -text
-plugins/graph-panel/src/mcp.mjs.LEGAL.txt -whitespace
-plugins/graph-panel/THIRD_PARTY_NOTICES.txt -whitespace
+plugins/graph-viewer/** linguist-generated=true
+plugins/graph-viewer/src/mcp.mjs -diff -text
+plugins/graph-viewer/src/mcp.mjs.LEGAL.txt -whitespace
+plugins/graph-viewer/THIRD_PARTY_NOTICES.txt -whitespace

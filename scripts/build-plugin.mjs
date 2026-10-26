@@ -4,7 +4,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-export const plugin = path.join(root, 'plugins', 'graph-panel');
+export const plugin = path.join(root, 'plugins', 'graph-viewer');
 const json = (file, value) => writeFile(file, JSON.stringify(value, null, 2) + '\n');
 
 export async function buildPlugin() {
@@ -34,17 +34,17 @@ export async function buildPlugin() {
   await Promise.all([
     ...['model.js', 'renderer.js'].map(file => cp(path.join(root, 'src', file), path.join(plugin, 'src', file))),
     cp(path.join(root, 'web', 'mcp.html'), path.join(plugin, 'web', 'mcp.html')),
-    cp(path.join(root, 'skills', 'graph-panel'), path.join(plugin, 'skills', 'graph-panel'), {recursive: true, filter: file => !file.endsWith(path.sep + 'scripts')}),
+    cp(path.join(root, 'skills', 'graph-viewer'), path.join(plugin, 'skills', 'graph-viewer'), {recursive: true, filter: file => !file.endsWith(path.sep + 'scripts')}),
     cp(path.join(root, 'scripts', 'start-plugin.ps1'), path.join(plugin, 'start.ps1')),
   ]);
   await writeFile(path.join(plugin, 'server.mjs'), "import './src/mcp.mjs';\n");
-  await json(path.join(plugin, 'package.json'), {name: 'codex-graph-panel', version, private: true, engines});
+  await json(path.join(plugin, 'package.json'), {name: 'graph-viewer', version, private: true, engines});
   await json(path.join(plugin, '.codex-plugin', 'plugin.json'), {
-    name: 'graph-panel', version, description: 'Interactive graphs for the current project and Codex chat.',
+    name: 'graph-viewer', version, description: 'Interactive graphs for the current project and Codex chat.',
     mcpServers: './.mcp.json', skills: './skills', requires_local_executor: true,
-    interface: {displayName: '그래프', shortDescription: '프로젝트별 그래프와 탐색'},
+    interface: {displayName: 'Graph Viewer', shortDescription: '프로젝트별 그래프와 탐색'},
   });
-  await json(path.join(plugin, '.mcp.json'), {mcpServers: {'graph-panel': {
+  await json(path.join(plugin, '.mcp.json'), {mcpServers: {'graph-viewer': {
     command: 'powershell.exe', args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'start.ps1'], cwd: '.',
     env: {CODEX_MCP_PROTOCOL_VERSION: '2026-07-28'},
   }}});

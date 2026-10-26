@@ -2,7 +2,7 @@
 
 공통 엔진과 기존 HTTP/CLI 연결의 호출 계약이다.
 MCP 실행 구조는 [아키텍처](architecture.md)를 참고한다.
-그래프 필드의 정의와 예제는 [그래프 JSON 형식](../skills/graph-panel/references/graph-format.md)에 있다.
+그래프 필드의 정의와 예제는 [그래프 JSON 형식](../skills/graph-viewer/references/graph-format.md)에 있다.
 
 ## 1. 엔진 API
 

@@ -1,6 +1,6 @@
-# 그래프 패널 아키텍처
+# Graph Viewer 아키텍처
 
-그래프 패널은 입력 자료, 표시 엔진과 Codex 연결부로 구성된다.
+Graph Viewer는 입력 자료, 표시 엔진과 Codex 연결부로 구성된다.
 자료의 의미는 작성자가 정하고, 표시 엔진은 노드와 관계를 탐색하는 화면을 제공한다.
 
 ## 구성과 책임
@@ -25,7 +25,7 @@ flowchart LR
 | Mermaid 변환 | 공식 흐름도 파서로 노드와 관계 추출 | src/mermaid.mjs |
 | MCP 연결 | 호출 프로젝트 선택, 채팅 식별과 UI 전달 | src/mcp.mjs, web/mcp.html |
 | 저장소 | 문서 버전, 보기 상태와 화면 세션 저장 | src/store.mjs |
-| 배포 | 서버 번들, 실행기, 사용 스킬과 marketplace | scripts/build-plugin.mjs, plugins/graph-panel |
+| 배포 | 서버 번들, 실행기, 사용 스킬과 marketplace | scripts/build-plugin.mjs, plugins/graph-viewer |
 
 엔진은 MCP, Codex DOM과 파일 저장에 의존하지 않는다.
 JSON은 설명, 상태와 출처를 표현한다.
@@ -81,7 +81,7 @@ Codex가 플러그인의 PowerShell 실행기를 시작한다.
 
 배포 서버는 실행 의존성을 포함한 번들이다.
 사용자는 npm 설치나 소스 빌드를 하지 않는다.
-소스 수정 후 빌드는 plugins/graph-panel을 갱신한다.
+소스 수정 후 빌드는 plugins/graph-viewer을 갱신한다.
 저장소의 marketplace가 그 폴더를 참조한다.
 
 ## 독립 화면과 기존 연결

@@ -31,6 +31,6 @@ try {
     $errorTask.GetAwaiter().GetResult()
     exit $server.ExitCode
 } catch {
-    [Console]::Error.WriteLine('Graph Panel: ' + $_.Exception.Message)
+    [Console]::Error.WriteLine('Graph Viewer: ' + $_.Exception.Message)
     exit 1
 }

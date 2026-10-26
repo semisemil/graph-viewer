@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>그래프</title>
+  <title>Graph Viewer</title>
   <style>
     html,body{height:100%;margin:0;background:#141618;color:#eef0f0;font:13px system-ui,sans-serif}
     body{display:flex;flex-direction:column}
@@ -155,7 +155,7 @@
     async function start(){
       try{
         if(window.parent===window)throw new Error('Codex의 그래프 도구로 열어 주세요.');
-        const host=await request('ui/initialize',{appInfo:{name:'graph-panel',version:'1.1.0'},appCapabilities:{},protocolVersion:'2026-01-26'});
+        const host=await request('ui/initialize',{appInfo:{name:'graph-viewer',version:'1.1.0'},appCapabilities:{},protocolVersion:'2026-01-26'});
         window.parent.postMessage({jsonrpc:'2.0',method:'ui/notifications/initialized',params:{}},'*');
         ready=true;setMode(host.hostContext?.displayMode);
       }catch(error){message('연결 실패: '+error.message,true);}
