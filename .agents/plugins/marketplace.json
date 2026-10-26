@@ -8,7 +8,7 @@
       "name": "graph-viewer",
       "source": {
         "source": "local",
-        "path": "./plugins/graph-viewer"
+        "path": "."
       },
       "policy": {
         "installation": "AVAILABLE",

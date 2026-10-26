@@ -47,11 +47,11 @@ serve는 준비되면 {ready:true,port,dataDir}를 출력한다.
 | validate | 그래프 파일 | 검증한 그래프 |
 | serve | --data-dir 절대 경로 | 루프백 서비스 시작 |
 | publish | 파일, --thread, --expected-revision | committed, graphId, revision, applied |
-| status | --thread | 그래프 목록과 snapshot, connection, applied |
-| show | --thread, --graph, --view | 요약 활성화 결과 또는 큰 화면 URL |
+| status | --thread | 그래프 목록과 snapshot, applied |
+| show | --thread, --graph, --view | 독립 HTML 화면 URL |
 
 호출 채팅은 {hostId,threadId}이며 기본 host는 local이다.
-스킬은 CODEX_THREAD_ID의 ID를 명시한다.
+CLI 호출자는 요청한 채팅의 ID를 명시한다.
 현재 전면 채팅을 발행 대상으로 추정하지 않는다.
 
 ## 3. HTTP
@@ -66,11 +66,11 @@ GET /connection에서 서비스 시작마다 새로 발급한 token을 얻는다
 | 경로 | 입력 | 출력 |
 |---|---|---|
 | POST /api/publish | chatRef, graph, expectedRevision | committed, graphId, revision, applied |
-| GET /api/status | hostId, threadId, 선택적 graphId | activeGraphId, graphs, snapshot, connection, applied |
+| GET /api/status | hostId, threadId, 선택적 graphId | activeGraphId, graphs, snapshot, applied |
 | POST /api/session | chatRef, graphId, view, clientId | sessionId |
 | POST /api/close-session | chatRef, graphId, view, sessionId | closed |
 | POST /api/state | chatRef, graphId, revision, view, sessionId, action | committed, snapshot |
-| POST /api/show | chatRef, graphId, view | graphId, revision, url 또는 요약 연결 결과 |
+| POST /api/show | chatRef, graphId, view | graphId, revision, url, applied |
 | POST /api/ack | chatRef, graphId, revision, view, sessionId | acknowledged |
 | GET /view | hostId, threadId, graphId | 독립 HTML 페이지 |
 
@@ -113,29 +113,14 @@ snapshot은 {graph,revision,state,stateRevision} 또는 null이다.
 같은 clientId의 새 세션은 이전 세션을 무효화한다.
 상태 쓰기는 채팅 큐 안에서 sessionId와 채팅/그래프/뷰를 대조한다.
 큰 화면은 페이지별 clientId를 사용한다.
-요약 연결부는 채팅 변경과 CDP 재연결에서 이전 세션을 무효화한다.
 조회 루프는 병렬 응답을 적용하지 않는다.
 조작 중이거나 미확인 조작이 남아 있으면 같은 graph revision의 조회 상태를 적용하지 않는다.
 저장 확인 뒤에는 확인한 stateRevision보다 낮은 응답을 버린다.
 새 그래프 버전은 옛 버전의 미확인 조작을 취소한다.
 
-## 5. Codex 연결과 적용 확인
+## 5. 화면 적용 확인
 
-메인 CDP 대상은 type=page, URL=app://-/index.html인 페이지가 정확히 하나일 때 선택한다.
-요약 연결부는 다음 속성이 같은 활성 사이드바 요소에서 확인될 때만 채팅을 식별한다.
-
-```css
-[data-app-action-sidebar-thread-active="true"]
-[data-app-action-sidebar-thread-selected="true"]
-[aria-current="page"]
-```
-
-host 속성은 data-app-action-sidebar-thread-host-id, thread 속성은 data-app-action-sidebar-thread-id다.
-현재 지원하는 local 채팅의 DOM ID는 local:<UUID>이며 전달 명령의 bare UUID로 변환한다.
-임시 새 채팅, 모호한 후보와 미검증 호스트 형식에서는 연결을 보류한다.
-채팅 변경과 새 연결은 새 contextGeneration을 사용하며 적용 직전에 다시 대조한다.
-요약은 표시 중인 [data-summary-panel-variant="summary"]의 기존 내용 뒤에 붙인다.
-영역을 찾지 못하면 waiting-summary로 보고한다.
-applied에는 해당 graph revision을 확인한 mountedViews, observedAt과 validForMs=3000을 포함한다.
-페이지 종료 시 세션을 닫으며 종료 알림이 도착하지 않아도 마지막 확인에서 3초가 지나면 applied에서 제외한다.
+HTML 페이지는 /api/ack로 표시한 그래프 버전을 보고한다.
+applied에는 해당 버전을 확인한 mountedViews, observedAt과 validForMs=3000을 포함한다.
+마지막 확인에서 3초가 지나면 applied에서 제외한다.
 이는 마지막 연결 확인 시각의 상태이며 화면 전면 표시나 백그라운드 픽셀 갱신을 보장하지 않는다.

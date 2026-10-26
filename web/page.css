@@ -1,7 +1,0 @@
-:root { color-scheme: dark; font: 13px system-ui, sans-serif; background: #141618; color: #eef0f0; }
-* { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; }
-body { display: flex; flex-direction: column; }
-#connection { padding: 6px 14px; background: #1c1e20; border-bottom: 1px solid #36393c; color: #acbbc5; font-size: 11px; }
-#connection[data-error=true] { color: #ffca87; }
-#graph { flex: 1; min-height: 0; }

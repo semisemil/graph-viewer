@@ -2,6 +2,10 @@
 /node_modules/
 /.graph-viewer/
 /.local/
+/.emeth/
+/docs/architecture/
+/experiments/
+/plugins/graph-viewer/
 
 # Environment secrets; keep documented sample configurations
 .env
