@@ -141,9 +141,10 @@ try {
   await compact.locator('.node[data-id="a"]').focus();
   await compact.keyboard.press('Enter');
   await compact.waitForTimeout(400);
-  assert.match(await compact.locator('.detail').innerText(), /<img src=x onerror=alert\(1\)>/);
+  assert.match(await compact.getByRole('tooltip').innerText(), /<img src=x onerror=alert\(1\)>/);
   assert.equal(await compact.locator('img').count(), 0);
   assert.equal(await compact.locator('.node[data-id="a"]').getAttribute('aria-pressed'), 'true');
+  await compact.keyboard.press('Escape');
   const map = compact.locator('.minimap');
   await compact.mouse.move(0, 0);
   await compact.waitForTimeout(200);
