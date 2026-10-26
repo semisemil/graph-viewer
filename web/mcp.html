@@ -167,7 +167,7 @@
     async function start(){
       try{
         if(window.parent===window)throw new Error('Codex의 그래프 도구로 열어 주세요.');
-        const host=await request('ui/initialize',{appInfo:{name:'graph-viewer',version:'1.2.0'},appCapabilities:{},protocolVersion:'2026-01-26'});
+        const host=await request('ui/initialize',{appInfo:{name:'graph-viewer',version:'1.2.1'},appCapabilities:{},protocolVersion:'2026-01-26'});
         window.parent.postMessage({jsonrpc:'2.0',method:'ui/notifications/initialized',params:{}},'*');
         ready=true;applyHostTheme(host.hostContext?.theme);setMode(host.hostContext?.displayMode);
       }catch(error){message('연결 실패: '+error.message,true);}

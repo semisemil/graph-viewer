@@ -23,8 +23,8 @@
     host.style.cssText = 'display:block;width:100%;height:100%;min-height:0';
     const shadow = host.attachShadow({mode: 'open'});
     shadow.innerHTML = `<style>
-      :host{--text:#eef0f0;--muted:#aeb9c2;--surface:#1c1e20;--canvas:#141618;--grid:#363b3f;--control:#282c2f;--control-border:#4a5054;--control-hover:#363e43;--line:#36393c;--focus:#7fb5ff;--node-surface:#22272b;--node-border:#4b535a;--selected:#c2e2ff;--related:#78b4dc;--edge:#55697d;--edge-active:#7faed4;--flow:#d4ecff;--tooltip-top:#2b3237;--tooltip-shadow:#0009;--scrollbar:#58636c;--source:#d8e3ec;--url:#94a7b7;--type-0:#43cba0;--type-1:#eab75b;--type-2:#6ba9ff;--type-3:#bb93ef;--type-4:#ee96ad;--type-5:#83cbd1;--type-6:#d5bd83;color:var(--text);font:13px system-ui,sans-serif;color-scheme:dark}
-      :host([data-theme="light"]){--text:#20303e;--muted:#526577;--surface:#fff;--canvas:#f2f5f8;--grid:#c8d2dc;--control:#fff;--control-border:#c4cfd9;--control-hover:#eaf0f6;--line:#dce3ea;--focus:#2563eb;--node-surface:#fff;--node-border:#aebfce;--selected:#2563eb;--related:#5585b7;--edge:#7e94a9;--edge-active:#386eac;--flow:#175bd2;--tooltip-top:#f8fbff;--tooltip-shadow:#20375024;--scrollbar:#a6b6c5;--source:#354f69;--url:#536d86;--type-0:#087f62;--type-1:#946200;--type-2:#245fbe;--type-3:#7850aa;--type-4:#aa4262;--type-5:#176f7a;--type-6:#7a601e;color-scheme:light}*{box-sizing:border-box}
+      :host{--text:#eef0f0;--muted:#aeb9c2;--surface:#1c1e20;--canvas:#141618;--grid:#363b3f;--control:#282c2f;--control-border:#4a5054;--control-hover:#363e43;--line:#36393c;--focus:#7fb5ff;--node-surface:#22272b;--card-tint:6%;--node-border:#4b535a;--selected:#c2e2ff;--related:#78b4dc;--edge:#55697d;--edge-active:#7faed4;--flow:#d4ecff;--tooltip-top:#2b3237;--tooltip-shadow:#0009;--scrollbar:#58636c;--source:#d8e3ec;--url:#94a7b7;--type-0:#43cba0;--type-1:#eab75b;--type-2:#6ba9ff;--type-3:#bb93ef;--type-4:#ee96ad;--type-5:#83cbd1;--type-6:#d5bd83;color:var(--text);font:13px system-ui,sans-serif;color-scheme:dark}
+      :host([data-theme="light"]){--text:#20303e;--muted:#526577;--surface:#fff;--canvas:#f2f5f8;--grid:#c8d2dc;--control:#fff;--control-border:#c4cfd9;--control-hover:#eaf0f6;--line:#dce3ea;--focus:#2563eb;--node-surface:#fff;--card-tint:4%;--node-border:#aebfce;--selected:#2563eb;--related:#5585b7;--edge:#7e94a9;--edge-active:#386eac;--flow:#175bd2;--tooltip-top:#f8fbff;--tooltip-shadow:#20375024;--scrollbar:#a6b6c5;--source:#354f69;--url:#536d86;--type-0:#087f62;--type-1:#946200;--type-2:#245fbe;--type-3:#7850aa;--type-4:#aa4262;--type-5:#176f7a;--type-6:#7a601e;color-scheme:light}*{box-sizing:border-box}
       .shell{height:100%;display:flex;flex-direction:column;background:var(--surface);overflow:hidden}
       header{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}.header-controls{display:flex;align-items:center;gap:8px}
       strong{font-size:14px;font-weight:600;overflow-wrap:anywhere;flex:1 1 160px;min-width:0}
@@ -103,7 +103,17 @@
       node.append(element(document, 'path', {d: 'M2 2 L10 6 L2 10', fill: 'none', stroke: 'context-stroke', 'stroke-width': 1.7, 'stroke-linecap': 'round', 'stroke-linejoin': 'round'}));
       return node;
     }
-    svg.querySelector('defs').append(marker(`${id}-arrow`, 10));
+    const definitions = svg.querySelector('defs');
+    definitions.append(marker(`${id}-arrow`, 10));
+    palette.forEach((color, index) => {
+      const gradient = element(document, 'linearGradient', {id: `${id}-card-${index}`, x1: '0%', y1: '0%', x2: '100%', y2: '100%'});
+      gradient.append(
+        element(document, 'stop', {offset: '0%', 'stop-color': `color-mix(in srgb,${color} var(--card-tint),var(--node-surface))`}),
+        element(document, 'stop', {offset: '55%', 'stop-color': 'var(--node-surface)'}),
+        element(document, 'stop', {offset: '100%', 'stop-color': 'color-mix(in srgb,var(--canvas) 35%,var(--node-surface))'}),
+      );
+      definitions.append(gradient);
+    });
 
     function interaction(value) {
       if (interacting === value) return;
@@ -399,7 +409,7 @@
       for (const data of layout.nodes) {
         const color = colors.get(data.type), w = layout.cardWidth, h = layout.cardHeight;
         const node = element(document, 'g', {class: 'node', 'data-id': data.id, role: 'button', tabindex: 0, 'aria-label': `${data.type}: ${data.label}`, transform: `translate(${data.x} ${data.y})`});
-        node.append(element(document, 'rect', {width: w, height: h, rx: 12, fill: 'var(--node-surface)', stroke: 'var(--node-border)', 'stroke-width': 1.5}), element(document, 'rect', {x: 14, y: 16, width: 8, height: 8, rx: 2, fill: color}));
+        node.append(element(document, 'rect', {width: w, height: h, rx: 12, fill: `url(#${id}-card-${palette.indexOf(color)})`, stroke: 'var(--node-border)', 'stroke-width': 1.5}), element(document, 'rect', {x: 14, y: 16, width: 8, height: 8, rx: 2, fill: color}));
         cardText(node, 'node-type', data.type, 30, 24, 12, color, 1, 600);
         const titleLines = cardText(node, 'node-title', data.label, 14, compact ? 45 : 55, compact ? 16 : 15, 'var(--text)', compact ? 2 : 1, 600);
         cardText(node, 'node-body', data.details || '', 14, compact ? (titleLines > 1 ? 83 : 66) : 80, compact ? 11 : 12, 'var(--muted)', compact ? 1 : 2);
