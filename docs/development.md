@@ -20,6 +20,7 @@ flowchart LR
 플러그인 사용자는 아래 빌드 과정을 실행하지 않습니다.
 
 ```powershell
+git switch dev
 npm ci --ignore-scripts
 npm test
 ```
@@ -41,6 +42,7 @@ npm run release
 이 명령은 플러그인을 빌드하고 검사한 뒤 main 브랜치에 배포 커밋을 만듭니다.
 현재 작업 폴더는 dev에 유지합니다.
 main에는 서버, 렌더러, 스킬과 문서를 배치하며 marketplace는 저장소 루트의 플러그인을 가리킵니다.
+배포용 임시 파일은 운영체제의 임시 폴더에 만들고 작업이 끝나면 삭제합니다.
 원격 저장소로 올리는 작업은 별도로 진행합니다.
 
 ## 검사

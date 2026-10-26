@@ -1,5 +1,6 @@
 import {execFileSync} from 'node:child_process';
 import {cp, mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {buildPlugin, plugin} from './build-plugin.mjs';
@@ -16,9 +17,8 @@ await buildPlugin();
 execFileSync(process.execPath, ['--test', 'test/*.test.mjs'], {cwd: root, stdio: 'inherit', windowsHide: true});
 if (git(['rev-parse', 'HEAD']) !== source || git(['status', '--porcelain', '--untracked-files=no'])) throw new Error('검사 중 개발 변경이 생겼습니다. 다시 실행하세요.');
 
-const temporaryRoot = path.join(root, '.local', 'releases');
-await mkdir(temporaryRoot, {recursive: true});
-const temporary = await mkdtemp(path.join(temporaryRoot, 'publish-'));
+const temporaryRoot = path.resolve(tmpdir());
+const temporary = await mkdtemp(path.join(temporaryRoot, 'graph-viewer-release-'));
 try {
   const output = path.join(temporary, 'tree');
   await cp(plugin, output, {recursive: true});
@@ -47,6 +47,6 @@ try {
   console.log(JSON.stringify({branch: 'main', commit, source, changed: commit !== previous}));
 } finally {
   const target = path.resolve(temporary);
-  if (!target.startsWith(path.resolve(temporaryRoot) + path.sep)) throw new Error('임시 배포 폴더 경로가 잘못되었습니다.');
+  if (path.dirname(target) !== temporaryRoot || !path.basename(target).startsWith('graph-viewer-release-')) throw new Error('임시 배포 폴더 경로가 잘못되었습니다.');
   await rm(target, {recursive: true, force: true});
 }
