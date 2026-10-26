@@ -3,7 +3,7 @@
 GitHub marketplace를 등록하고 플러그인을 설치한다.
 
 ```powershell
-codex plugin marketplace add OWNER/REPO
+codex plugin marketplace add OWNER/REPO --ref main
 codex plugin add graph-viewer@graph-viewer
 ```
 
