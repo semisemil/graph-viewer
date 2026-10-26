@@ -117,6 +117,44 @@ for (const initialOrder of ['before', 'after']) {
   });
 }
 
+test('toolbar clears persisted search and double-click centers the clicked point without changing zoom', {skip: !packagePath, timeout: 30000}, async t => {
+  const f = await browserFixture(t);
+  f.page.setDefaultTimeout(7000);
+  assert.equal(await f.frame.locator('body>header').isVisible(), false);
+  assert.equal(await f.frame.locator('body').getByText(f.graph.title, {exact: true}).count(), 0);
+  const search = f.frame.getByRole('textbox', {name: '노드 검색'});
+  const clear = f.frame.locator('.search-field').getByRole('button', {name: '검색어 지우기'});
+  const query = f.graph.nodes[0].label;
+  await search.fill(query);
+  await storedUntil(f.client, snapshot => snapshot.state.views.large.query === query);
+  assert.ok(await f.frame.locator('.node.search-miss').count() > 0);
+  await clear.click();
+  assert.equal(await search.inputValue(), '');
+  assert.equal(await clear.isVisible(), false);
+  assert.equal(await search.evaluate(input => input.getRootNode().activeElement === input), true);
+  await storedUntil(f.client, snapshot => snapshot.state.views.large.query === '');
+  assert.equal(await f.frame.locator('.node.search-miss').count(), 0);
+
+  const svg = f.frame.locator('svg.graph');
+  const before = await svg.evaluate(() => window.graphPanelView.getState());
+  const bounds = await svg.boundingBox();
+  const point = {x: bounds.width - 8, y: 10};
+  const expected = {
+    x: before.camera.x + (point.x - bounds.width / 2) / before.camera.zoom,
+    y: before.camera.y + (point.y - bounds.height / 2) / before.camera.zoom,
+    zoom: before.camera.zoom,
+  };
+  await svg.dblclick({position: point});
+  const saved = await storedUntil(f.client, snapshot => {
+    const camera = snapshot.state.views.large.camera;
+    return camera && ['x', 'y', 'zoom'].every(key => Math.abs(camera[key] - expected[key]) < .01);
+  });
+  assert.equal(saved.state.selectedNodeId, before.selectedNodeId);
+  assert.equal(saved.state.views.large.camera.zoom, before.camera.zoom);
+  assert.equal(await f.frame.locator('body>header').isVisible(), false);
+  assert.deepEqual(f.errors, []);
+});
+
 test('late old open results cannot discard a valid in-flight UI connection or change its pinned chat', { skip: !packagePath, timeout: 30000 }, async t => {
   const f = await browserFixture(t);
   const edited = researchGraph('신규 연결의 문서');

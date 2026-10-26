@@ -5,7 +5,7 @@
   const graphId = parameters.get('graphId'), clientId = crypto.randomUUID();
   const label = document.getElementById('connection'), container = document.getElementById('graph');
   let token, sessionId, view, snapshot, interacting = false, actions = [], stopped = false, confirmedStateRevision = -1;
-  function message(text, error = false) {label.textContent = text; label.dataset.error = String(error);}
+  function message(text, error = false) {label.textContent = text; label.dataset.error = String(error); label.hidden = !text;}
   function localState(item) {return {selectedNodeId: item.state.selectedNodeId, ...item.state.views.large};}
   async function request(route, body, authenticated = true) {
     const response = await fetch(route, {
@@ -47,7 +47,7 @@
       globalThis.graphPanelView = view;
     } else view.update(next.graph, newGraph || !interacting && !actions.length && next.stateRevision >= confirmedStateRevision ? localState(next) : undefined);
     document.title = next.graph.title;
-    message(`${next.graph.title} / 저장 버전 ${next.revision}`);
+    message('');
     await request('/api/ack', {chatRef, graphId, revision: next.revision, view: 'large', sessionId});
   }
   async function loop() {

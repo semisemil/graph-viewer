@@ -3,6 +3,7 @@
 
   const SVG = 'http://www.w3.org/2000/svg';
   const palette = Array.from({length: 7}, (_, index) => `var(--type-${index})`);
+  const icon = content => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${content}</svg>`;
   let sequence = 0;
 
   function element(document, tag, attributes = {}, text) {
@@ -26,15 +27,22 @@
       :host{--text:#eef0f0;--muted:#aeb9c2;--surface:#1c1e20;--canvas:#141618;--grid:#363b3f;--control:#282c2f;--control-border:#4a5054;--control-hover:#363e43;--line:#36393c;--focus:#7fb5ff;--node-surface:#22272b;--card-tint:6%;--node-border:#4b535a;--selected:#c2e2ff;--related:#78b4dc;--edge:#55697d;--edge-active:#7faed4;--flow:#d4ecff;--tooltip-top:#2b3237;--tooltip-shadow:#0009;--scrollbar:#58636c;--source:#d8e3ec;--url:#94a7b7;--type-0:#43cba0;--type-1:#eab75b;--type-2:#6ba9ff;--type-3:#bb93ef;--type-4:#ee96ad;--type-5:#83cbd1;--type-6:#d5bd83;color:var(--text);font:13px system-ui,sans-serif;color-scheme:dark}
       :host([data-theme="light"]){--text:#20303e;--muted:#526577;--surface:#fff;--canvas:#f2f5f8;--grid:#c8d2dc;--control:#fff;--control-border:#c4cfd9;--control-hover:#eaf0f6;--line:#dce3ea;--focus:#2563eb;--node-surface:#fff;--card-tint:4%;--node-border:#aebfce;--selected:#2563eb;--related:#5585b7;--edge:#7e94a9;--edge-active:#386eac;--flow:#175bd2;--tooltip-top:#f8fbff;--tooltip-shadow:#20375024;--scrollbar:#a6b6c5;--source:#354f69;--url:#536d86;--type-0:#087f62;--type-1:#946200;--type-2:#245fbe;--type-3:#7850aa;--type-4:#aa4262;--type-5:#176f7a;--type-6:#7a601e;color-scheme:light}*{box-sizing:border-box}
       .shell{height:100%;display:flex;flex-direction:column;background:var(--surface);overflow:hidden}
-      header{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}.header-controls{display:flex;align-items:center;gap:8px}
-      strong{font-size:14px;font-weight:600;overflow-wrap:anywhere;flex:1 1 160px;min-width:0}
-      button,input,select{font:inherit;color:inherit;background:var(--control);border:1px solid var(--control-border);border-radius:6px;padding:6px 9px}
-      button,select{cursor:pointer}button:hover{background:var(--control-hover)}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--focus);outline-offset:2px}select{width:104px}
-      input{min-width:80px;width:135px;max-width:100%}input::placeholder{color:var(--muted)}.legend{display:flex;gap:12px;padding:9px 14px;color:var(--muted);font-size:11px;flex-wrap:wrap;max-height:80px;overflow:auto}
+      header{padding:10px 12px;border-bottom:1px solid var(--line)}.header-controls{display:flex;align-items:center;gap:10px;width:100%}
+      button,input,select{font:inherit;color:inherit}.icon{width:16px;height:16px;flex:none;pointer-events:none}
+      button{display:inline-flex;align-items:center;justify-content:center;height:32px;min-width:32px;padding:6px;background:transparent;border:1px solid transparent;border-radius:8px;cursor:pointer;transition:background 140ms ease,color 140ms ease,border-color 140ms ease}
+      button[hidden]{display:none}button:hover{background:var(--control-hover)}button:active{background:color-mix(in srgb,var(--focus) 15%,var(--control))}button:focus-visible,select:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+      .search-field{position:relative;display:flex;align-items:center;flex:1;min-width:0;max-width:280px;height:36px;border:1px solid var(--control-border);border-radius:9px;background:var(--control);transition:border-color 140ms ease,box-shadow 140ms ease}
+      .search-field:focus-within{border-color:var(--focus);box-shadow:0 0 0 3px color-mix(in srgb,var(--focus) 14%,transparent)}.search-field>.icon{margin-left:10px;color:var(--muted)}
+      input{width:100%;min-width:0;height:100%;padding:0 34px 0 8px;background:transparent;border:0;outline:none}input::placeholder{color:var(--muted)}
+      .search-clear{position:absolute;right:4px;top:4px;width:26px;min-width:26px;height:26px;padding:4px;border-radius:6px;color:var(--muted)}.search-clear:hover{color:var(--text)}
+      .theme-field{position:relative;flex:none;width:112px;margin-left:auto}.theme-field>.icon{position:absolute;right:9px;top:10px;color:var(--muted)}
+      select{appearance:none;width:100%;height:36px;padding:0 30px 0 11px;background:var(--control);border:1px solid var(--control-border);border-radius:9px;cursor:pointer}select:hover{background:var(--control-hover)}
+      .legend{display:flex;gap:12px;padding:9px 14px;color:var(--muted);font-size:11px;flex-wrap:wrap;max-height:80px;overflow:auto}
       .legend span{overflow-wrap:anywhere}.legend span::before{content:'';display:inline-block;width:7px;height:7px;margin-right:5px;border-radius:2px;background:var(--c)}
       .canvas{position:relative;flex:1;min-height:80px;background-color:var(--canvas);background-image:radial-gradient(var(--grid) .7px,transparent .7px);background-size:18px 18px}
       svg.graph{width:100%;height:100%;display:block;touch-action:none;cursor:grab}svg.graph:active{cursor:grabbing}.node{cursor:pointer;outline:none}.node:focus-visible>rect:first-child{stroke:var(--focus);stroke-width:3}
-      .tools{position:absolute;bottom:12px;left:12px;display:flex;gap:4px}.tools button{min-width:32px}.zoom{background:var(--control);padding:7px;border-radius:6px;font-size:11px}
+      .tools{position:absolute;bottom:12px;left:12px;display:flex;align-items:center;gap:2px;padding:4px;border:1px solid var(--control-border);border-radius:12px;background:color-mix(in srgb,var(--surface) 94%,transparent);box-shadow:0 4px 12px color-mix(in srgb,var(--tooltip-shadow) 45%,transparent)}
+      .tools button{width:32px}.zoom{display:flex;align-items:center;justify-content:center;min-width:46px;height:32px;margin-left:4px;padding:0 8px;border-left:1px solid var(--line);color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
       .minimap{position:absolute;right:12px;bottom:12px;width:145px;height:70px;border:1px solid var(--control-border);border-radius:7px;background:var(--node-surface);pointer-events:none}
       .viewport{fill:var(--selected);fill-opacity:.07;stroke:var(--related);stroke-width:1;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
       .mini-edge{fill:none;stroke:var(--edge);stroke-width:.8;vector-effect:non-scaling-stroke}.mini-connection.related .mini-edge{stroke:var(--edge-active);stroke-width:1.2}
@@ -59,9 +67,15 @@
       .tooltip-sources{margin-top:14px;padding-top:11px;border-top:1px solid var(--line);display:grid;gap:9px}.tooltip-source-label{display:block;color:var(--source);font-size:11px;font-weight:600}.tooltip-source-url{display:block;margin-top:3px;color:var(--url);font-size:11px;line-height:1.6}
       @keyframes tooltip-in{from{opacity:0}to{opacity:1}}.empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);pointer-events:none}.empty[hidden]{display:none}
       .motion-off .edge-flow{display:none!important;animation:none!important}
-      @media(prefers-reduced-motion:reduce){.connection.related .edge-flow,.mini-connection.related .edge-flow{display:none;animation:none}.node,.node>rect:first-child,.edge{transition:none}.node-tooltip{animation:none}}
-      ${compact ? 'header{padding:10px;gap:6px}strong{font-size:12px;flex-basis:140px}.header-controls{gap:6px}input,select{font-size:11px;padding:4px 6px}input{width:110px}select{width:88px}.legend{padding:6px 10px;gap:8px;max-height:56px}.tooltip-scroll{padding:13px 14px}.tooltip-title{font-size:15px}.tools{bottom:7px;left:7px}.tools button{padding:3px 6px;min-width:24px}.zoom{padding:4px}.minimap{width:60px;height:116px;right:7px;bottom:7px;opacity:.3;pointer-events:all;transition:opacity 160ms ease}.minimap:hover,.minimap:focus-visible{opacity:1}.minimap:focus-visible{outline:2px solid var(--focus);outline-offset:2px}@media(prefers-reduced-motion:reduce){.minimap{transition:none}}' : ''}
-    </style><div class="shell"><header><strong></strong><div class="header-controls"><input aria-label="노드 검색" placeholder="노드 검색"><select aria-label="화면 테마"><option value="auto">자동 테마</option><option value="light">라이트</option><option value="dark">다크</option></select></div></header><div class="legend" aria-label="노드 유형"></div><div class="canvas"><svg class="graph" role="group"><defs></defs><g class="world"></g></svg><div class="empty" hidden>표시할 노드가 없습니다.</div><div class="tools"><button aria-label="확대">+</button><button aria-label="축소">−</button><button aria-label="전체 맞춤">맞춤</button><span class="zoom"></span></div><svg class="minimap" role="img" aria-label="그래프 미니맵" tabindex="0"></svg><div class="node-tooltip" id="${id}-tooltip" role="tooltip" hidden><div class="tooltip-scroll"></div></div></div></div>`;
+      @media(prefers-reduced-motion:reduce){.connection.related .edge-flow,.mini-connection.related .edge-flow{display:none;animation:none}.node,.node>rect:first-child,.edge,button,.search-field{transition:none}.node-tooltip{animation:none}}
+      @media(max-width:380px){header{padding:8px}.header-controls{gap:6px}.theme-field{width:100px}}
+      ${compact ? 'header{padding:8px}.header-controls{gap:6px}.search-field,select{height:32px;font-size:12px}.search-clear{top:2px;right:2px}.theme-field{width:100px}.theme-field>.icon{top:8px}.legend{padding:6px 10px;gap:8px;max-height:56px}.tooltip-scroll{padding:13px 14px}.tooltip-title{font-size:15px}.tools{bottom:7px;left:7px}.tools button{width:28px;height:28px;min-width:28px}.zoom{height:28px;min-width:42px}.minimap{width:60px;height:116px;right:7px;bottom:7px;opacity:.3;pointer-events:all;transition:opacity 160ms ease}.minimap:hover,.minimap:focus-visible{opacity:1}.minimap:focus-visible{outline:2px solid var(--focus);outline-offset:2px}@media(prefers-reduced-motion:reduce){.minimap{transition:none}}' : ''}
+    </style><div class="shell"><header><div class="header-controls">
+      <div class="search-field">${icon('<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/>')}<input aria-label="노드 검색" placeholder="노드 검색"><button class="search-clear" type="button" aria-label="검색어 지우기" title="검색어 지우기" hidden>${icon('<path d="m8 8 8 8m0-8-8 8"/>')}</button></div>
+      <div class="theme-field"><select aria-label="화면 테마"><option value="auto">자동 테마</option><option value="light">라이트</option><option value="dark">다크</option></select>${icon('<path d="m8 10 4 4 4-4"/>')}</div>
+    </div></header><div class="legend" aria-label="노드 유형"></div><div class="canvas"><svg class="graph" role="group"><defs></defs><g class="world"></g></svg><div class="empty" hidden>표시할 노드가 없습니다.</div>
+      <div class="tools" role="toolbar" aria-label="그래프 보기"><button type="button" aria-label="확대" title="확대">${icon('<path d="M12 5v14M5 12h14"/>')}</button><button type="button" aria-label="축소" title="축소">${icon('<path d="M5 12h14"/>')}</button><button type="button" aria-label="전체 맞춤" title="전체 맞춤">${icon('<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>')}</button><span class="zoom"></span></div>
+      <svg class="minimap" role="img" aria-label="그래프 미니맵" tabindex="0"></svg><div class="node-tooltip" id="${id}-tooltip" role="tooltip" hidden><div class="tooltip-scroll"></div></div></div></div>`;
 
     const shell = shadow.querySelector('.shell');
     const svg = shadow.querySelector('.graph');
@@ -71,6 +85,7 @@
     const tooltip = shadow.querySelector('.node-tooltip');
     const tooltipScroll = shadow.querySelector('.tooltip-scroll');
     const search = shadow.querySelector('input');
+    const clearSearch = shadow.querySelector('.search-clear');
     const themeSelect = shadow.querySelector('select');
     const measure = document.createElement('canvas').getContext('2d');
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -369,7 +384,6 @@
       layout = model.layoutGraph(graph, compact);
       nodeMap = new Map(graph.nodes.map(node => [node.id, node]));
       viewMap = new Map(layout.nodes.map(node => [node.id, node]));
-      shadow.querySelector('strong').textContent = graph.title;
       svg.setAttribute('aria-label', graph.title);
       shadow.querySelector('.empty').hidden = graph.nodes.length !== 0;
       const legend = shadow.querySelector('.legend');
@@ -459,6 +473,7 @@
       }
       if (!graph.nodes.some(node => node.id === selectedNodeId)) selectedNodeId = null;
       search.value = query;
+      clearSearch.hidden = !query;
       if (changedGraph) {
         hovered = null; focused = null;
         graphSignature = signature;
@@ -488,6 +503,16 @@
       transform();
     });
     for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) svg.addEventListener(name, endDrag);
+    svg.addEventListener('dblclick', event => {
+      if (event.button !== 0 || !camera) return;
+      event.preventDefault();
+      if (drag) endDrag();
+      const bounds = svg.getBoundingClientRect();
+      const x = ((event.clientX - bounds.left) / bounds.width - .5) * svg.clientWidth;
+      const y = ((event.clientY - bounds.top) / bounds.height - .5) * svg.clientHeight;
+      hovered = focused = null; hideTooltip();
+      moveTo({x: camera.x + x / camera.zoom, y: camera.y + y / camera.zoom, zoom: camera.zoom}, 300);
+    });
     svg.addEventListener('wheel', event => {
       event.preventDefault();
       if (drag) endDrag();
@@ -497,7 +522,14 @@
     shadow.querySelector('[aria-label="확대"]').addEventListener('click', () => zoom(1.25));
     shadow.querySelector('[aria-label="축소"]').addEventListener('click', () => zoom(.8));
     shadow.querySelector('[aria-label="전체 맞춤"]').addEventListener('click', () => fit(true));
-    search.addEventListener('input', () => { query = search.value; updateHighlights(); emit({type: 'setQuery', query}); });
+    function updateQuery() {
+      query = search.value;
+      clearSearch.hidden = !query;
+      updateHighlights();
+      emit({type: 'setQuery', query});
+    }
+    search.addEventListener('input', updateQuery);
+    clearSearch.addEventListener('click', () => { search.value = ''; updateQuery(); search.focus(); });
     function visibilityChanged() {
       shell.classList.toggle('motion-off', document.hidden);
       if (document.hidden) { hovered = focused = null; hideTooltip(); }

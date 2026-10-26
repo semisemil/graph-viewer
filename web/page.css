@@ -3,5 +3,6 @@
 html, body { height: 100%; margin: 0; }
 body { display: flex; flex-direction: column; }
 #connection { padding: 6px 14px; background: light-dark(#fff, #1c1e20); border-bottom: 1px solid light-dark(#dce3ea, #36393c); color: light-dark(#526577, #acbbc5); font-size: 11px; }
+#connection[hidden] { display: none; }
 #connection[data-error=true] { color: light-dark(#a34b0c, #ffca87); }
 #graph { flex: 1; min-height: 0; }

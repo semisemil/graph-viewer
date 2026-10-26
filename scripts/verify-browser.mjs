@@ -59,6 +59,7 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(origin + route);
   await page.waitForFunction(() => globalThis.graphPanelView);
+  assert.equal(await page.locator('#connection').isVisible(), false);
   assert.equal(await page.locator('.node').count(), 6);
   assert.equal(await page.locator('.edge-flow:visible').count(), 0);
 
