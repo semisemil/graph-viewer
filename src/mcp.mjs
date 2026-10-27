@@ -5,7 +5,11 @@ import {appendFile, mkdir, open, readFile, realpath, stat, writeFile} from 'node
 import path from 'node:path';
 import GraphModel from './model.js';
 import {GraphStore, chatRef, sameChat, failure} from './store.mjs';
-import {mermaidGraph} from './mermaid.mjs';
+
+async function mermaidGraph(text, options) {
+  const parser = await import('./mermaid.mjs');
+  return parser.mermaidGraph(text, options);
+}
 
 if (process.platform !== 'win32') throw failure('unsupported-platform', 'MCP 그래프 탭은 현재 Windows를 지원합니다.');
 const stores = new Map();
@@ -86,9 +90,9 @@ transport.send = async message => {
   if (message.result?.supportedVersions) await log({kind: 'discover-result', supportedVersions: message.result.supportedVersions});
   return send(message);
 };
-serveStdio(factory => {
+const serving = serveStdio(factory => {
   const protocolVersion = () => factory.era === 'modern' ? '2026-07-28' : negotiatedVersion;
-  const server = new McpServer({name: 'graph-viewer', version: '1.2.1'}, {
+  const server = new McpServer({name: 'graph-viewer', version: '1.2.2'}, {
     capabilities: {extensions: {'io.modelcontextprotocol/ui': {}}},
     instructions: 'Pass the current project absolute path as projectPath. Use graph_publish with JSON or Mermaid, then open_graph. Updates do not open another tab. Chat identity comes from the host.',
   });
@@ -171,3 +175,20 @@ serveStdio(factory => {
   }]}));
   return server;
 }, {transport, onerror: error => {console.error(error.message);}});
+
+const parentPid = process.ppid;
+let stopping = false;
+const parentWatch = setInterval(async () => {
+  if (stopping) return;
+  try {process.kill(parentPid, 0);}
+  catch (error) {
+    if (error.code !== 'ESRCH') return;
+    stopping = true;
+    clearInterval(parentWatch);
+    try {
+      await serving.close();
+      await Promise.allSettled([...stores.values()].map(async store => (await store).drain()));
+    } finally {process.exit(0);}
+  }
+}, 1000);
+parentWatch.unref();

@@ -1,91 +1,12 @@
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { test } from 'node:test';
-import { CHAT_A, CHAT_B, fixture, researchGraph, publish, success, action } from './mcp-fixture.mjs';
+import { CHAT_B, researchGraph, publish, success, action } from './mcp-fixture.mjs';
+
+import {browserFixture} from './browser-fixture.mjs';
 
 const packagePath = process.env.GRAPH_PANEL_PLAYWRIGHT;
-const browserOptions = { headless: true, ...(process.env.GRAPH_PANEL_CHROMIUM ? { executablePath: process.env.GRAPH_PANEL_CHROMIUM } : {}) };
-
-async function browserFixture(t, { initialOrder = 'after', hostTheme = 'dark' } = {}) {
-  const f = await fixture(t), client = await f.start();
-  const originalCall = client.call;
-  client.call = (name, args = {}, scope) => originalCall(name, name === 'graph_view' ? args : {projectPath: f.root, ...args}, scope);
-  const graph = researchGraph('MCP 브라우저 최초 문서');
-  await publish(client, graph);
-  const opened = await client.call('open_graph', { graphId: graph.graphId });
-  success(opened);
-  const { contents } = await client.request('resources/read', { uri: 'ui://graph-viewer/graph-v2.html' });
-  const { chromium } = createRequire(import.meta.url)(packagePath);
-  const browser = await chromium.launch(browserOptions);
-  t.after(() => browser.close());
-  const page = await browser.newPage({ viewport: { width: 1200, height: 850 } });
-  const errors = [];
-  page.on('pageerror', error => errors.push(error.message));
-  let held;
-  await page.exposeFunction('mcpTool', async params => {
-    const result = await client.request('tools/call', { ...params, _meta: { ...params._meta, threadId: CHAT_A.threadId } });
-    if (held && params.name === 'graph_view' && params.arguments.op === 'sync' && params.arguments.sessionId === held.sessionId) {
-      const waiting = held;
-      held = null;
-      waiting.received();
-      await waiting.release;
-    }
-    return result;
-  });
-  await page.route('http://127.0.0.1/mcp-contract-host', route => route.fulfill({
-    contentType: 'text/html', body: '<title>독립 MCP 호스트</title><iframe title="그래프" style="width:100%;height:800px;border:0"></iframe>',
-  }));
-  await page.goto('http://127.0.0.1/mcp-contract-host');
-  await page.evaluate(({ html, opened, initialOrder, hostTheme }) => {
-    const frame = document.querySelector('iframe');
-    const send = message => frame.contentWindow.postMessage({ jsonrpc: '2.0', ...message }, '*');
-    window.deliverToolResult = result => send({ method: 'ui/notifications/tool-result', params: result });
-    window.deliverHostContext = context => send({method: 'ui/notifications/host-context-changed', params: context});
-    let initialDelivered = false;
-    const deliverInitial = () => {
-      if (initialDelivered) return;
-      initialDelivered = true;
-      window.deliverToolResult(opened);
-    };
-    addEventListener('message', async event => {
-      if (event.source !== frame.contentWindow) return;
-      const { id, method, params } = event.data || {};
-      if (method === 'ui/notifications/initialized') {
-        if (initialOrder === 'after') deliverInitial();
-        return;
-      }
-      if (id === undefined) return;
-      let result;
-      if (method === 'ui/initialize') {
-        if (initialOrder === 'before') deliverInitial();
-        result = { protocolVersion: '2026-01-26', hostInfo: { name: 'independent-test-host', version: '1' }, hostContext: { displayMode: 'fullscreen', theme: hostTheme } };
-      } else if (method === 'tools/call') {
-        result = await window.mcpTool(params);
-      } else {
-        send({ id, error: { code: -32601, message: `Unexpected host request: ${method}` } });
-        return;
-      }
-      send({ id, result });
-    });
-    frame.srcdoc = html;
-  }, { html: contents[0].text, opened, initialOrder, hostTheme });
-  const frame = page.frameLocator('iframe');
-  await frame.locator('.node[data-id="question"]').waitFor();
-  return {
-    ...f, client, graph, opened, page, frame, errors,
-    deliver: result => page.evaluate(result => window.deliverToolResult(result), result),
-    changeHostContext: context => page.evaluate(context => window.deliverHostContext(context), context),
-    holdNextSync(sessionId) {
-      let received, release;
-      const receivedPromise = new Promise(resolve => { received = resolve; });
-      const releasePromise = new Promise(resolve => { release = resolve; });
-      held = { sessionId, received, release: releasePromise };
-      return { received: receivedPromise, release };
-    },
-  };
-}
 
 async function storedUntil(client, predicate) {
   const deadline = Date.now() + 7000;
@@ -198,20 +119,37 @@ test('Mermaid arrows and selected paths render consistently in the graph and min
   const f = await browserFixture(t);
   f.page.setDefaultTimeout(7000);
   success(await f.client.call('graph_publish', {
-    mermaid: 'flowchart LR\n A[시작] --> B[확인]\n B <--> C[검증]\n C --- D[완료]',
+    mermaid: 'flowchart LR\n A[시작] --> B[확인]\n B <--> C[검증]\n C --- D[완료]\n A --> X[다른 분기]',
     graphId: f.graph.graphId, expectedRevision: 1,
   }));
   await f.frame.locator('.node[data-id="D"]').waitFor();
   await f.frame.getByRole('button', {name: '전체 맞춤'}).click();
   for (const selector of ['.edge', '.mini-edge']) {
-    assert.equal(await f.frame.locator(selector).count(), 3);
-    assert.equal(await f.frame.locator(selector + '[marker-end]').count(), 2);
+    assert.equal(await f.frame.locator(selector).count(), 4);
+    assert.equal(await f.frame.locator(selector + '[marker-end]').count(), 3);
     assert.equal(await f.frame.locator(selector + '[marker-start]').count(), 1);
   }
   await f.frame.locator('.node[data-id="D"]').click();
   await storedUntil(f.client, snapshot => snapshot.state.selectedNodeId === 'D');
   assert.equal(await f.frame.locator('.node.connected').count(), 3);
   assert.equal(await f.frame.locator('.mini-node.connected').count(), 3);
+  assert.equal(await f.frame.locator('.node.unrelated[data-id="X"]').count(), 1);
+  assert.deepEqual(f.errors, []);
+});
+
+test('the maximum graph keeps nodes selectable in overview and restores labels after zooming', {skip: !packagePath, timeout: 30000}, async t => {
+  const nodes = Array.from({length: 500}, (_, i) => ({id: `n${i}`, type: '작업', label: `작업 ${i}`}));
+  const edges = [];
+  for (let gap = 1; edges.length < 2000; gap++) for (let i = 0; i + gap < nodes.length && edges.length < 2000; i++) edges.push({id: `e${edges.length}`, source: `n${i}`, target: `n${i + gap}`});
+  const f = await browserFixture(t, {graph: {schemaVersion: 1, graphId: 'maximum', title: '최대 크기 그래프', nodes, edges}});
+  assert.equal(await f.frame.getByRole('button', {name: /^작업: 작업 /}).count(), 500);
+  const title = f.frame.locator('.node[data-id="n0"] .node-title');
+  assert.equal(await title.evaluate(node => getComputedStyle(node).display), 'none');
+  await f.frame.locator('.node[data-id="n0"]').dispatchEvent('click');
+  await storedUntil(f.client, snapshot => snapshot.state.selectedNodeId === 'n0' && snapshot.state.views.large.camera?.zoom >= 1);
+  assert.notEqual(await title.evaluate(node => getComputedStyle(node).display), 'none');
+  assert.equal(await f.frame.locator('.node.connected').count(), 499);
+  assert.equal(await f.frame.locator('.mini-node.connected').count(), 499);
   assert.deepEqual(f.errors, []);
 });
 

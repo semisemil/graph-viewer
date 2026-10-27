@@ -147,10 +147,11 @@ function stdioClient(entry, args, { cwd = ROOT, env = process.env, nodeArgs = []
     child.once('error', error => { fail(error); resolve(); });
     child.once('exit', (code, signal) => {
       fail(new Error(`MCP exited (${code ?? signal}). ${stderr}`));
-      resolve();
+      resolve({code, signal});
     });
   });
   return {
+    get stderr() { return stderr; },
     request(method, params = {}) {
       const id = ++sequence;
       return new Promise((resolve, reject) => {
@@ -171,11 +172,13 @@ function stdioClient(entry, args, { cwd = ROOT, env = process.env, nodeArgs = []
     async stop() {
       stopping ??= (async () => {
         child.stdin.end();
-        const timeout = setTimeout(() => child.kill(), 1000);
-        await done;
+        let forced = false;
+        const timeout = setTimeout(() => {forced = true; child.kill();}, 1000);
+        const result = await done;
         clearTimeout(timeout);
+        return {...result, forced};
       })();
-      await stopping;
+      return stopping;
     },
   };
 }

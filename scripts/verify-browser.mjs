@@ -3,6 +3,7 @@ import {createRequire} from 'node:module';
 import {mkdtemp, readFile, rm, mkdir, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
+import {pathToFileURL} from 'node:url';
 import net from 'node:net';
 import {startServer} from '../src/server.mjs';
 
@@ -10,7 +11,7 @@ const packagePath = process.argv[2];
 if (!packagePath) throw new Error('사용법: node scripts/verify-browser.mjs <playwright 패키지 절대 경로>');
 const {chromium} = createRequire(import.meta.url)(packagePath);
 const temporary = await mkdtemp(path.join(tmpdir(), 'graph-browser-'));
-const artifactDir = new URL('../.local/engine-work/', import.meta.url);
+const artifactDir = process.argv[4] ? pathToFileURL(path.resolve(process.argv[4]) + path.sep) : new URL('../.local/engine-work/', import.meta.url);
 await mkdir(artifactDir, {recursive: true});
 const probe = net.createServer();
 await new Promise(resolve => probe.listen(0, '127.0.0.1', resolve));
@@ -108,8 +109,13 @@ try {
   assert.ok(Number(await page.locator('.viewport').getAttribute('width')) < Number(viewportWidth));
   outcomes.push('드래그 종료 즉시 정지, 확대와 미니맵 현재 영역');
   await page.getByRole('textbox', {name: '노드 검색'}).fill('근거');
-  await page.waitForTimeout(650);
-  const state = (await savedState()).snapshot.state;
+  const savedBy = Date.now() + 7000;
+  let state;
+  do {
+    state = (await savedState()).snapshot.state;
+    if (state.selectedNodeId === 'a' && state.views.large.query === '근거') break;
+    await new Promise(resolve => setTimeout(resolve, 50));
+  } while (Date.now() < savedBy);
   assert.equal(state.selectedNodeId, 'a');
   assert.equal(state.views.large.query, '근거');
   assert.equal(state.views.summary.query, '');

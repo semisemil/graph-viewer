@@ -23,7 +23,7 @@ try {
   const output = path.join(temporary, 'tree');
   await cp(plugin, output, {recursive: true});
   for (const file of [
-    'AGENTS.md', 'README.md', '.gitignore', 'docs/architecture.md', 'docs/architecture-contracts.md', 'docs/development.md',
+    'AGENTS.md', 'README.md', '.gitignore', 'docs/architecture.md', 'docs/architecture-contracts.md', 'docs/development.md', 'docs/performance.md',
     'docs/images/investigation.jpg', 'examples/system-map.json', 'examples/request-latency.json', 'examples/request-latency.mmd',
   ]) {
     await mkdir(path.dirname(path.join(output, file)), {recursive: true});
@@ -33,7 +33,7 @@ try {
   catalog.plugins[0].source.path = '.';
   await mkdir(path.join(output, '.agents/plugins'), {recursive: true});
   await writeFile(path.join(output, '.agents/plugins/marketplace.json'), JSON.stringify(catalog, null, 2) + '\n');
-  await writeFile(path.join(output, '.gitattributes'), '* text=auto\nsrc/mcp.mjs -diff -text linguist-generated=true\nsrc/mcp.mjs.LEGAL.txt -whitespace\nTHIRD_PARTY_NOTICES.txt -whitespace\n');
+  await writeFile(path.join(output, '.gitattributes'), '* text=auto\nsrc/mcp.mjs -diff -text linguist-generated=true\nsrc/mcp.mjs.LEGAL.txt -whitespace\nsrc/chunks/*.mjs -diff -text linguist-generated=true\nsrc/chunks/*.LEGAL.txt -whitespace\nTHIRD_PARTY_NOTICES.txt -whitespace\n');
   const env = {...process.env, GIT_INDEX_FILE: path.join(temporary, 'index')};
   git(['--work-tree', output, 'read-tree', '--empty'], env);
   git(['--work-tree', output, 'add', '--all', '--force'], env);

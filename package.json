@@ -1,6 +1,6 @@
 {
   "name": "graph-viewer",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "private": true,
   "description": "Independent graph viewer and chat-scoped Codex MCP extension",
   "engines": {
@@ -13,7 +13,9 @@
     "test": "node --test test/*.test.mjs",
     "pretest": "node scripts/build-plugin.mjs",
     "build:plugin": "node scripts/build-plugin.mjs",
-    "release": "node scripts/release.mjs"
+    "release": "node scripts/release.mjs",
+    "benchmark": "node scripts/benchmark.mjs",
+    "verify:shutdown": "node scripts/verify-shutdown.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.4.0",

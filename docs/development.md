@@ -54,6 +54,35 @@ main에는 서버, 렌더러, 스킬과 문서를 배치하며 marketplace는 �
 GRAPH_PANEL_CHROMIUM에는 사용할 Chromium 실행 파일을 지정할 수 있습니다.
 렌더러의 별도 검사는 scripts/verify-browser.mjs에서 실행합니다.
 
+### 성능과 종료 검사
+
+아래 명령은 dev 브랜치에서 실행합니다.
+브라우저 검사의 환경 변수를 지정한 뒤 배포본을 빌드합니다.
+
+```powershell
+npm run build:plugin
+npm run benchmark -- --launcher=true --soak-seconds=600 --output='<결과 JSON 절대 경로>'
+npm run verify:shutdown -- --repeat=10
+```
+
+성능 검사는 최대 500개 노드와 2,000개 연결, 긴 설명과 순환 그래프를 다룹니다.
+생성과 제거 100회, MCP 화면 재열기 30회, 동시 4개 뷰와 연속 사용 중의 힙과 DOM 수를 기록합니다.
+메모리는 가비지 수집 후 측정하며, 테스트 프로젝트는 운영체제 임시 폴더에 만들고 종료 시 삭제합니다.
+`--performance-only=true`는 프레임과 처리 시간만 측정합니다.
+`--source-ref=<Git ref>`는 해당 버전의 엔진 소스로 비교합니다.
+`--entry=<server.mjs 절대 경로>`는 비교할 배포 서버를 지정합니다.
+`--launcher=true`는 PowerShell 실행기와 Codex 번들 Node로 MCP 서버를 시작합니다.
+측정 조건과 이번 결과는 [성능과 수명 검증](performance.md)을 참고하세요.
+
+종료 검사는 독립된 시험용 호스트와 그 자식 프로세스만 종료합니다.
+실제 Codex 종료는 다음과 같이 이전 프로세스의 PID와 생성 시각을 저장한 뒤, 앱을 완전히 종료하고 다시 열어 확인합니다.
+
+```powershell
+npm run verify:shutdown -- --capture='<종료 확인 JSON 절대 경로>'
+# Codex를 완전히 종료한 뒤 다시 엽니다.
+npm run verify:shutdown -- --check='<같은 JSON 절대 경로>'
+```
+
 ## 개발용 패키지 복사
 
 설정을 따로 시험하려면 다음 명령으로 새 패키지 폴더를 만듭니다.

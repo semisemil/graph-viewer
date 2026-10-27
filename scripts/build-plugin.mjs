@@ -1,5 +1,5 @@
 import {build} from 'esbuild';
-import {cp, mkdir, readFile, readdir, writeFile} from 'node:fs/promises';
+import {cp, mkdir, readFile, readdir, rm, writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -12,8 +12,13 @@ export async function buildPlugin() {
   await mkdir(path.join(plugin, 'src'), {recursive: true});
   await mkdir(path.join(plugin, 'web'), {recursive: true});
   await mkdir(path.join(plugin, '.codex-plugin'), {recursive: true});
+  const chunks = path.resolve(plugin, 'src', 'chunks');
+  if (path.dirname(chunks) !== path.join(plugin, 'src')) throw new Error('생성 청크 경로가 잘못되었습니다.');
+  await rm(chunks, {recursive: true, force: true});
+  await rm(path.join(plugin, 'src', 'mcp.mjs.LEGAL.txt'), {force: true});
   const bundle = await build({
-    absWorkingDir: root, entryPoints: ['src/mcp.mjs'], outfile: path.join(plugin, 'src', 'mcp.mjs'),
+    absWorkingDir: root, entryPoints: ['src/mcp.mjs'], outdir: path.join(plugin, 'src'), entryNames: 'mcp',
+    chunkNames: 'chunks/[name]-[hash]', outExtension: {'.js': '.mjs'}, splitting: true,
     bundle: true, platform: 'node', target: 'node22.12', format: 'esm', minify: true, keepNames: true,
     legalComments: 'external', metafile: true,
     banner: {js: "import {createRequire as bundleRequire} from 'node:module';const require=bundleRequire(import.meta.url);"},

@@ -56,19 +56,25 @@
 
   function connectedPath(graph, selected) {
     if (!graph.nodes.some(n => n.id === selected)) return {nodes: new Set(), edges: new Set()};
-    function visit(backward) {
+    const forward = new Map(graph.nodes.map(node => [node.id, []]));
+    const backward = new Map(graph.nodes.map(node => [node.id, []]));
+    for (const edge of graph.edges) {
+      forward.get(edge.source).push(edge.target);
+      backward.get(edge.target).push(edge.source);
+      if (edge.direction === 'both' || edge.direction === 'none') {
+        forward.get(edge.target).push(edge.source);
+        backward.get(edge.source).push(edge.target);
+      }
+    }
+    function visit(adjacent) {
       const seen = new Set([selected]), pending = [selected];
       while (pending.length) {
         const id = pending.pop();
-        for (const edge of graph.edges) {
-          const from = backward ? edge.target : edge.source, to = backward ? edge.source : edge.target;
-          if (from === id && !seen.has(to)) {seen.add(to); pending.push(to);}
-          if ((edge.direction === 'both' || edge.direction === 'none') && to === id && !seen.has(from)) {seen.add(from); pending.push(from);}
-        }
+        for (const next of adjacent.get(id)) if (!seen.has(next)) {seen.add(next); pending.push(next);}
       }
       return seen;
     }
-    const before = visit(true), after = visit(false);
+    const before = visit(backward), after = visit(forward);
     return {
       nodes: new Set([...before, ...after]),
       edges: new Set(graph.edges.filter(e => before.has(e.source) && before.has(e.target) || after.has(e.source) && after.has(e.target)).map(e => e.id)),

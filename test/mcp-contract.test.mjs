@@ -222,6 +222,13 @@ test('modern discovery exposes model and app tools separately and returns a self
   assert.deepEqual(read.snapshot.graph, graph);
 });
 
+test('the packaged launcher exits on host disconnection without a forced kill', async t => {
+  const f = await fixture(t);
+  const client = await f.start(path.join(ROOT, 'plugins/graph-viewer/start.ps1'), ROOT, {launcher: true});
+  const exit = await client.stop();
+  assert.deepEqual(exit, {code: 0, signal: null, forced: false});
+});
+
 test('a generated package runs after moving to a directory with spaces and Korean text', { timeout: 120000 }, async t => {
   const f = await fixture(t);
   const output = path.join(f.root, 'generated-package');
