@@ -8,7 +8,7 @@ export const plugin = path.join(root, 'plugins', 'graph-viewer');
 const json = (file, value) => writeFile(file, JSON.stringify(value, null, 2) + '\n');
 
 export async function buildPlugin() {
-  const {version, engines} = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+  const {version, engines, license} = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
   await mkdir(path.join(plugin, 'src'), {recursive: true});
   await mkdir(path.join(plugin, 'web'), {recursive: true});
   await mkdir(path.join(plugin, '.codex-plugin'), {recursive: true});
@@ -41,9 +41,10 @@ export async function buildPlugin() {
     cp(path.join(root, 'web', 'mcp.html'), path.join(plugin, 'web', 'mcp.html')),
     cp(path.join(root, 'skills', 'graph-viewer'), path.join(plugin, 'skills', 'graph-viewer'), {recursive: true, filter: file => !file.endsWith(path.sep + 'scripts')}),
     cp(path.join(root, 'scripts', 'start-plugin.ps1'), path.join(plugin, 'start.ps1')),
+    cp(path.join(root, 'LICENSE'), path.join(plugin, 'LICENSE')),
   ]);
   await writeFile(path.join(plugin, 'server.mjs'), "import './src/mcp.mjs';\n");
-  await json(path.join(plugin, 'package.json'), {name: 'graph-viewer', version, private: true, engines});
+  await json(path.join(plugin, 'package.json'), {name: 'graph-viewer', version, private: true, license, engines});
   await json(path.join(plugin, '.codex-plugin', 'plugin.json'), {
     name: 'graph-viewer', version, description: 'Interactive graphs for the current project and Codex chat.',
     mcpServers: './.mcp.json', skills: './skills', requires_local_executor: true,
