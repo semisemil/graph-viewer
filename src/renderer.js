@@ -46,15 +46,16 @@
       .minimap{position:absolute;right:12px;bottom:12px;width:145px;height:70px;border:1px solid var(--control-border);border-radius:7px;background:var(--node-surface);pointer-events:none}
       .viewport{fill:var(--selected);fill-opacity:.07;stroke:var(--related);stroke-width:1;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
       .mini-edge{fill:none;stroke:var(--edge);stroke-width:.8;vector-effect:non-scaling-stroke}.mini-connection.related .mini-edge{stroke:var(--edge-active);stroke-width:1.2}
-      .mini-node{stroke:var(--node-border);stroke-width:.6;vector-effect:non-scaling-stroke;opacity:.45}.mini-node.connected{stroke:var(--related);stroke-width:1.3;opacity:.9;filter:drop-shadow(0 0 14px color-mix(in srgb,var(--related) 45%,transparent))}
+      .mini-node{stroke:var(--node-border);stroke-width:.6;vector-effect:non-scaling-stroke;opacity:.45}.mini-node.connected{stroke:var(--related);stroke-width:1.3;opacity:.9}
       .mini-node.selected{stroke:var(--selected);stroke-width:2;opacity:1;filter:drop-shadow(0 0 20px color-mix(in srgb,var(--selected) 60%,transparent))}
       .node{transition:opacity 160ms ease}.node>rect:first-child{transition:stroke 180ms ease,stroke-width 180ms ease,filter 180ms ease}
-      .node.connected>rect:first-child{stroke:var(--related);stroke-width:2;filter:drop-shadow(0 0 5px color-mix(in srgb,var(--related) 25%,transparent))}.node[aria-pressed="true"]>rect:first-child{stroke:var(--selected);stroke-width:2.6;filter:drop-shadow(0 0 8px color-mix(in srgb,var(--selected) 40%,transparent))}.node.unrelated{opacity:.58}.node.search-miss{opacity:.2}
+      .node.connected>rect:first-child{stroke:var(--related);stroke-width:2}.node[aria-pressed="true"]>rect:first-child{stroke:var(--selected);stroke-width:2.6;filter:drop-shadow(0 0 8px color-mix(in srgb,var(--selected) 40%,transparent))}.node.unrelated{opacity:.58}.node.search-miss{opacity:.2}
       .edge{transition:stroke 180ms ease,stroke-width 180ms ease;stroke-linecap:round;stroke-linejoin:round}.edge.related{stroke:var(--edge-active);stroke-width:2}
       .edge-flow{display:none;fill:none;stroke-width:2;stroke-linecap:round;stroke-dasharray:10 42;pointer-events:none}
-      .connection.related .edge-flow,.mini-connection.related .edge-flow{display:block;stroke:var(--flow);opacity:.95;filter:drop-shadow(0 0 3px color-mix(in srgb,var(--flow) 55%,transparent));animation:edge-current 1300ms linear infinite}.mini-connection .edge-flow{stroke-width:10}
+      .edge-flow.related{display:block;stroke:var(--flow);opacity:.95;animation:edge-current 1300ms linear infinite}
       .port{fill:var(--node-surface);stroke:var(--edge);stroke-width:1.5}.connection.related .port{stroke:var(--related)}
       .edge-label{fill:var(--muted);font-size:10px;text-anchor:middle;paint-order:stroke;stroke:var(--canvas);stroke-width:5px;stroke-linejoin:round}
+      .overview .node text,.overview .edge-label,.overview .port{display:none}
       @keyframes edge-current{to{stroke-dashoffset:-52}}
       .node-tooltip{position:absolute;z-index:3;width:360px;max-width:calc(100% - 24px);display:flex;flex-direction:column;border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line));border-radius:14px;background:linear-gradient(150deg,var(--tooltip-top),var(--node-surface) 70%);box-shadow:0 16px 40px var(--tooltip-shadow),0 0 22px color-mix(in srgb,var(--accent) 12%,transparent);color:var(--muted);cursor:auto;animation:tooltip-in 140ms ease-out}
       .node-tooltip[hidden]{display:none}.node-tooltip::after{content:'';position:absolute;width:9px;height:9px;background:var(--tooltip-top);transform:rotate(45deg);border:inherit}
@@ -67,7 +68,7 @@
       .tooltip-sources{margin-top:14px;padding-top:11px;border-top:1px solid var(--line);display:grid;gap:9px}.tooltip-source-label{display:block;color:var(--source);font-size:11px;font-weight:600}.tooltip-source-url{display:block;margin-top:3px;color:var(--url);font-size:11px;line-height:1.6}
       @keyframes tooltip-in{from{opacity:0}to{opacity:1}}.empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);pointer-events:none}.empty[hidden]{display:none}
       .motion-off .edge-flow{display:none!important;animation:none!important}
-      @media(prefers-reduced-motion:reduce){.connection.related .edge-flow,.mini-connection.related .edge-flow{display:none;animation:none}.node,.node>rect:first-child,.edge,button,.search-field{transition:none}.node-tooltip{animation:none}}
+      @media(prefers-reduced-motion:reduce){.edge-flow.related{display:none;animation:none}.node,.node>rect:first-child,.edge,button,.search-field{transition:none}.node-tooltip{animation:none}}
       @media(max-width:380px){header{padding:8px}.header-controls{gap:6px}.theme-field{width:100px}}
       ${compact ? 'header{padding:8px}.header-controls{gap:6px}.search-field,select{height:32px;font-size:12px}.search-clear{top:2px;right:2px}.theme-field{width:100px}.theme-field>.icon{top:8px}.legend{padding:6px 10px;gap:8px;max-height:56px}.tooltip-scroll{padding:13px 14px}.tooltip-title{font-size:15px}.tools{bottom:7px;left:7px}.tools button{width:28px;height:28px;min-width:28px}.zoom{height:28px;min-width:42px}.minimap{width:60px;height:116px;right:7px;bottom:7px;opacity:.3;pointer-events:all;transition:opacity 160ms ease}.minimap:hover,.minimap:focus-visible{opacity:1}.minimap:focus-visible{outline:2px solid var(--focus);outline-offset:2px}@media(prefers-reduced-motion:reduce){.minimap{transition:none}}' : ''}
     </style><div class="shell"><header><div class="header-controls">
@@ -98,6 +99,7 @@
     let tooltipAnchor = null, tooltipHovered = false, showTimer = 0, hideTimer = 0;
     let frame = 0, target = null, interacting = false, destroyed = false;
     let nodeElements = [], miniNodes = [], connections = [], miniConnections = [];
+    let flow, surfaceWidth = 0, surfaceHeight = 0;
 
     function applyTheme() {
       const automatic = ['light', 'dark'].includes(hostTheme) ? hostTheme : colorScheme.matches ? 'dark' : 'light';
@@ -151,15 +153,17 @@
     }
     function transform() {
       if (!camera) return;
-      const tx = svg.clientWidth / 2 - camera.x * camera.zoom;
-      const ty = svg.clientHeight / 2 - camera.y * camera.zoom;
+      const width = surfaceWidth, height = surfaceHeight;
+      const tx = width / 2 - camera.x * camera.zoom;
+      const ty = height / 2 - camera.y * camera.zoom;
+      world.classList.toggle('overview', camera.zoom < .2);
       world.setAttribute('transform', `translate(${tx} ${ty}) scale(${camera.zoom})`);
       shadow.querySelector('.zoom').textContent = `${Math.round(camera.zoom * 100)}%`;
       if (viewport) {
         const left = Math.max(0, Math.min(layout.width, -tx / camera.zoom));
         const top = Math.max(0, Math.min(layout.height, -ty / camera.zoom));
-        const right = Math.max(left, Math.min(layout.width, (svg.clientWidth - tx) / camera.zoom));
-        const bottom = Math.max(top, Math.min(layout.height, (svg.clientHeight - ty) / camera.zoom));
+        const right = Math.max(left, Math.min(layout.width, (width - tx) / camera.zoom));
+        const bottom = Math.max(top, Math.min(layout.height, (height - ty) / camera.zoom));
         for (const [key, value] of Object.entries({x: left, y: top, width: right - left, height: bottom - top})) viewport.setAttribute(key, value);
       }
       positionTooltip();
@@ -186,11 +190,12 @@
       frame = window.requestAnimationFrame(step);
     }
     function fit(local = false) {
-      if (!svg.clientWidth || !svg.clientHeight) return;
-      const zoom = Math.max(.001, Math.min((svg.clientWidth - 30) / layout.width, (svg.clientHeight - 35) / layout.height));
+      surfaceWidth = svg.clientWidth; surfaceHeight = svg.clientHeight;
+      if (!surfaceWidth || !surfaceHeight) return;
+      const zoom = Math.max(.001, Math.min((surfaceWidth - 30) / layout.width, (surfaceHeight - 35) / layout.height));
       moveTo({x: layout.width / 2, y: layout.height / 2, zoom}, local ? 440 : 0, local);
     }
-    function zoom(factor, x = svg.clientWidth / 2, y = svg.clientHeight / 2, duration = 300) {
+    function zoom(factor, x = surfaceWidth / 2, y = surfaceHeight / 2, duration = 300) {
       if (!camera) fit();
       if (!camera) return;
       const from = target || camera;
@@ -203,9 +208,15 @@
       let rest = Array.from(value.trim());
       const lines = [];
       while (rest.length && lines.length < maxLines) {
-        if (measure.measureText(rest.join('')).width <= width) { lines.push(rest.join('')); break; }
-        let count = 0;
-        while (count < rest.length && measure.measureText(rest.slice(0, count + 1).join('')).width <= width) count++;
+        let low = 0, high = 1;
+        const fits = count => measure.measureText(rest.slice(0, count).join('')).width <= width;
+        while (high < rest.length && fits(high)) {low = high; high = Math.min(rest.length, high * 2);}
+        while (low < high) {
+          const middle = Math.ceil((low + high) / 2);
+          if (fits(middle)) low = middle; else high = middle - 1;
+        }
+        let count = low;
+        if (count === rest.length) {lines.push(rest.join('')); break;}
         count = Math.max(1, count);
         if (lines.length === maxLines - 1) {
           while (count > 0 && measure.measureText(rest.slice(0, count).join('') + '…').width > width) count--;
@@ -347,6 +358,9 @@
         connection.classList.toggle('related', active);
         connection.querySelector('.edge')?.classList.toggle('related', active);
       }
+      const path = connections.filter(connection => related.edges.has(connection.dataset.id)).map(connection => connection.firstElementChild.getAttribute('d')).join(' ');
+      if (flow.getAttribute('d') !== path) flow.setAttribute('d', path);
+      flow.classList.toggle('related', !!path);
       positionTooltip();
     }
     function choose(nodeId) {
@@ -408,7 +422,7 @@
         const geometry = edgeGeometry(edge, index);
         const connection = element(document, 'g', {class: 'connection', 'data-id': edge.id, 'data-from': edge.source, 'data-to': edge.target});
         const arrows = markerId => edge.direction === 'none' ? {} : {'marker-end': `url(#${markerId})`, ...(edge.direction === 'both' ? {'marker-start': `url(#${markerId})`} : {})};
-        connection.append(element(document, 'path', {class: 'edge', d: geometry.d, fill: 'none', stroke: 'var(--edge)', 'stroke-width': 1.5, ...arrows(`${id}-arrow`)}), element(document, 'path', {class: 'edge-flow', d: geometry.d}));
+        connection.append(element(document, 'path', {class: 'edge', d: geometry.d, fill: 'none', stroke: 'var(--edge)', 'stroke-width': 1.5, ...arrows(`${id}-arrow`)}));
         for (const point of [geometry.start, geometry.end]) connection.append(element(document, 'circle', {class: 'port', cx: point[0], cy: point[1], r: 3}));
         if (edge.label || edge.type) {
           const label = element(document, 'text', {class: 'edge-label', x: geometry.label[0], y: geometry.label[1]}, fitText(edge.label || edge.type, 120, '400 10px system-ui, sans-serif', 1)[0] || '');
@@ -417,9 +431,11 @@
         }
         world.append(connection); connections.push(connection);
         const mini = element(document, 'g', {class: 'mini-connection', 'data-id': edge.id, 'data-from': edge.source, 'data-to': edge.target});
-        mini.append(element(document, 'path', {class: 'mini-edge', d: geometry.d, ...arrows(`${id}-mini-arrow`)}), element(document, 'path', {class: 'edge-flow', d: geometry.d}));
+        mini.append(element(document, 'path', {class: 'mini-edge', d: geometry.d, ...arrows(`${id}-mini-arrow`)}));
         minimap.append(mini); miniConnections.push(mini);
       });
+      flow = element(document, 'path', {class: 'edge-flow'});
+      world.append(flow);
       for (const data of layout.nodes) {
         const color = colors.get(data.type), w = layout.cardWidth, h = layout.cardHeight;
         const node = element(document, 'g', {class: 'node', 'data-id': data.id, role: 'button', tabindex: 0, 'aria-label': `${data.type}: ${data.label}`, transform: `translate(${data.x} ${data.y})`});
@@ -454,6 +470,7 @@
       const signature = JSON.stringify(next);
       const changedGraph = graphSignature !== signature;
       if (!changedGraph && !state) return;
+      const previousSelected = selectedNodeId, previousQuery = query;
       const changedId = graph?.graphId !== next.graphId;
       if (changedGraph) {
         stopAnimation();
@@ -479,7 +496,7 @@
         graphSignature = signature;
         renderGraph();
       } else {
-        updateHighlights();
+        if (previousSelected !== selectedNodeId || previousQuery !== query) updateHighlights();
         transform();
       }
     }
@@ -539,13 +556,17 @@
     shell.classList.toggle('motion-off', document.hidden);
     applyTheme();
     container.append(host);
+    surfaceWidth = svg.clientWidth; surfaceHeight = svg.clientHeight;
     try { update(options.graph, options.state); }
     catch (error) { host.remove(); throw error; }
     document.addEventListener('visibilitychange', visibilityChanged);
     document.addEventListener('keydown', tooltipKeydown);
     reduced.addEventListener('change', motionChanged);
     colorScheme.addEventListener('change', applyTheme);
-    const resize = new window.ResizeObserver(() => { if (camera) transform(); else fit(); });
+    const resize = new window.ResizeObserver(([entry]) => {
+      surfaceWidth = entry.contentRect.width; surfaceHeight = entry.contentRect.height;
+      if (camera) transform(); else fit();
+    });
     resize.observe(svg);
     return {
       update,
@@ -562,6 +583,12 @@
         reduced.removeEventListener('change', motionChanged);
         colorScheme.removeEventListener('change', applyTheme);
         interaction(false);
+        world.replaceChildren();
+        minimap.replaceChildren();
+        tooltipScroll.replaceChildren();
+        nodeElements = miniNodes = connections = miniConnections = [];
+        graph = layout = nodeMap = viewMap = colors = flow = null;
+        options = {};
         host.remove();
       }
     };

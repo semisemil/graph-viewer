@@ -1,0 +1,2 @@
+import {createRequire as bundleRequire} from 'node:module';const require=bundleRequire(import.meta.url);
+import{$ as s}from"./chunk-FTFTUPTZ.mjs";import{h as e}from"./chunk-V2G3TM5P.mjs";import{a as n}from"./chunk-X4OTSM52.mjs";var a=n(t=>{let{securityLevel:c}=s(),o=e("body");if(c==="sandbox"){let m=e(`#i${t}`).node()?.contentDocument??document;o=e(m.body)}return o.select(`#${t}`)},"selectSvgElement");export{a};

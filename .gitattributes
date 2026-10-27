@@ -1,4 +1,6 @@
 * text=auto
 src/mcp.mjs -diff -text linguist-generated=true
 src/mcp.mjs.LEGAL.txt -whitespace
+src/chunks/*.mjs -diff -text linguist-generated=true
+src/chunks/*.LEGAL.txt -whitespace
 THIRD_PARTY_NOTICES.txt -whitespace
