@@ -22,9 +22,10 @@ if (process.argv[2] === '--owner') {
   child.stdin.on('error', () => {});
   child.on('exit', code => {process.exitCode=code;process.stdin.destroy();});
 } else if (option('capture') || option('check')) {
-  const processes = JSON.parse(query(`$items = Get-CimInstance Win32_Process -Filter "Name = 'node.exe' OR Name = 'powershell.exe'" | ForEach-Object { [pscustomobject]@{pid=$_.ProcessId;parent=$_.ParentProcessId;name=$_.Name;created=$_.CreationDate.ToUniversalTime().ToString('o');graph=($_.Name -eq 'node.exe' -and $_.CommandLine -match 'plugins[\\/]cache[\\/]graph-viewer[\\/]graph-viewer[\\/].*server.mjs')} }; ConvertTo-Json -InputObject @($items) -Compress`));
+  const processes = JSON.parse(query(`$items = Get-CimInstance Win32_Process -Filter "Name = 'node.exe' OR Name = 'powershell.exe'" | ForEach-Object { [pscustomobject]@{pid=$_.ProcessId;parent=$_.ParentProcessId;name=$_.Name;created=$_.CreationDate.ToUniversalTime().ToString('o');graph=($_.Name -eq 'node.exe' -and $_.CommandLine -and $_.CommandLine.Replace([char]92,[char]47) -like '*/plugins/cache/graph-viewer/graph-viewer/*/server.mjs*')} }; ConvertTo-Json -InputObject @($items) -Compress`));
   if (option('capture')) {
     const servers = processes.filter(item => item.graph);
+    assert.ok(servers.length, '실행 중인 Graph Viewer 서버가 없습니다. 그래프 도구를 사용한 뒤 다시 저장하세요.');
     const launchers = processes.filter(item => servers.some(server => server.parent === item.pid));
     const record = {capturedAt: new Date().toISOString(), servers, launchers};
     writeFileSync(path.resolve(option('capture')), JSON.stringify(record, null, 2) + '\n');
