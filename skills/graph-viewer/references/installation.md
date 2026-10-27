@@ -3,11 +3,10 @@
 GitHub marketplace를 등록하고 플러그인을 설치한다.
 
 ```powershell
-codex plugin marketplace add OWNER/REPO --ref main
+codex plugin marketplace add semisemil/graph-viewer --ref main
 codex plugin add graph-viewer@graph-viewer
 ```
 
-OWNER/REPO는 공개 저장소가 정해지면 실제 경로로 교체한다.
 설치한 플러그인이 표시되지 않으면 Codex를 다시 연다.
 
 Codex는 평소 아이콘으로 실행한다.

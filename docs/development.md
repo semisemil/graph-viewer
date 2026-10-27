@@ -94,7 +94,7 @@ node scripts/package-mcp.mjs --output '<새 패키지 절대 경로>'
 --data-dir와 --log는 기존 저장 경로나 진단 파일을 명시하는 개발 옵션입니다.
 기본 설치는 도구가 전달한 프로젝트 안에 자료를 저장합니다.
 
-GitHub 저장소 이름이 정해지면 해당 저장소를 Codex marketplace로 등록할 수 있습니다.
+설치 명령은 [README](../README.md#-설치)를 참고하세요.
 등록용 Codex CLI 명령은 그래프 기능의 실행 의존성이 아닙니다.
 배포 절차는 [공식 플러그인 문서](https://developers.openai.com/plugins/build/plugins)를 따릅니다.
 

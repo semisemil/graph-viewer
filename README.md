@@ -37,11 +37,10 @@ Graph Viewer는 이런 관계를 한 화면에 표시합니다.
 GitHub marketplace를 등록한 뒤 플러그인을 설치합니다.
 
 ```powershell
-codex plugin marketplace add OWNER/REPO --ref main
+codex plugin marketplace add semisemil/graph-viewer --ref main
 codex plugin add graph-viewer@graph-viewer
 ```
 
-`OWNER/REPO`는 공개 저장소가 정해지면 실제 경로로 교체합니다.
 설치한 플러그인이 표시되지 않으면 Codex를 다시 엽니다.
 명령의 사용법은 [Codex 공식 설치 안내](https://learn.chatgpt.com/docs/developer-commands#codex-plugin-marketplace)를 참고하세요.
 
@@ -106,3 +105,8 @@ Mermaid의 도형, 스타일과 그룹 테두리는 그대로 재현하지 않�
 - [아키텍처](docs/architecture.md)
 - [에이전트용 사용 스킬](skills/graph-viewer/SKILL.md)
 - [그래프 JSON 형식](skills/graph-viewer/references/graph-format.md)
+
+## 📄 라이선스
+
+[MIT](LICENSE) 라이선스로 배포합니다.
+포함된 외부 라이브러리의 라이선스는 배포본의 [THIRD_PARTY_NOTICES.txt](https://github.com/semisemil/graph-viewer/blob/main/THIRD_PARTY_NOTICES.txt)에 있습니다.
