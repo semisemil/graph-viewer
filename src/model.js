@@ -1,6 +1,6 @@
 (function (root) {
   'use strict';
-  const limits = Object.freeze({bytes: 1024 * 1024, nodes: 500, edges: 2000});
+  const limits = Object.freeze({bytes: 1024 * 1024, nodes: 500, edges: 2000, groups: 500});
   const layoutModes = Object.freeze(['layered', 'tree', 'radial', 'network']);
   const layoutDirections = Object.freeze(['horizontal', 'vertical']);
 
@@ -39,13 +39,37 @@
         }
       }
     }
+    const groupIds = new Set(), memberOwners = new Set(), groups = graph.groups === undefined ? [] : graph.groups;
+    requireValue(Array.isArray(groups) && groups.length <= limits.groups, 'groups는 최대 500개입니다.');
+    for (const group of groups) {
+      requireValue(group && typeof group === 'object', '그룹 형식을 확인하세요.');
+      string(group.id, 'group.id'); string(group.label, 'group.label', 2000);
+      requireValue(!groupIds.has(group.id) && !nodeIds.has(group.id), `중복 그룹 ID: ${group.id}`);
+      groupIds.add(group.id);
+      requireValue(Array.isArray(group.nodeIds), 'group.nodeIds는 노드 ID 배열이어야 합니다.');
+      for (const id of group.nodeIds) {
+        requireValue(nodeIds.has(id), `그룹의 노드가 없습니다: ${id}`);
+        requireValue(!memberOwners.has(id), `노드는 하나의 그룹에 직접 속해야 합니다: ${id}`);
+        memberOwners.add(id);
+      }
+      if (group.parentId !== undefined) string(group.parentId, 'group.parentId');
+    }
+    const parents = new Map(groups.map(group => [group.id, group.parentId]));
+    for (const group of groups) {
+      const seen = new Set([group.id]);
+      let parent = group.parentId;
+      while (parent !== undefined) {
+        requireValue(groupIds.has(parent) && !seen.has(parent), `그룹의 부모 또는 중첩 관계가 잘못됐습니다: ${group.id}`);
+        seen.add(parent); parent = parents.get(parent);
+      }
+    }
     for (const edge of graph.edges) {
       requireValue(edge && typeof edge === 'object', '연결 형식을 확인하세요.');
       string(edge.id, 'edge.id');
       string(edge.source, 'edge.source');
       string(edge.target, 'edge.target');
       requireValue(!edgeIds.has(edge.id), `중복 연결 ID: ${edge.id}`);
-      requireValue(nodeIds.has(edge.source) && nodeIds.has(edge.target), `연결의 노드가 없습니다: ${edge.id}`);
+      requireValue((nodeIds.has(edge.source) || groupIds.has(edge.source)) && (nodeIds.has(edge.target) || groupIds.has(edge.target)), `연결의 노드 또는 그룹이 없습니다: ${edge.id}`);
       edgeIds.add(edge.id);
       if (edge.type !== undefined) string(edge.type, 'edge.type');
       if (edge.label !== undefined) string(edge.label, 'edge.label', 2000, true);
@@ -57,15 +81,19 @@
   }
 
   function connectedPath(graph, selected) {
-    if (!graph.nodes.some(n => n.id === selected)) return {nodes: new Set(), edges: new Set()};
+    if (!graph.nodes.some(n => n.id === selected)) return {nodes: new Set(), edges: new Set(), groups: new Set()};
     const forward = new Map(graph.nodes.map(node => [node.id, []]));
     const backward = new Map(graph.nodes.map(node => [node.id, []]));
+    const members = groupMembers(graph), hubs = new Map();
+    const link = (source, target) => {forward.get(source).push(target); backward.get(target).push(source);};
     for (const edge of graph.edges) {
-      forward.get(edge.source).push(edge.target);
-      backward.get(edge.target).push(edge.source);
-      if (edge.direction === 'both' || edge.direction === 'none') {
-        forward.get(edge.target).push(edge.source);
-        backward.get(edge.source).push(edge.target);
+      const reverse = edge.direction === 'both' || edge.direction === 'none';
+      if (members.has(edge.source) || members.has(edge.target)) {
+        const hub = Symbol(edge.id); hubs.set(edge.id, hub); forward.set(hub, []); backward.set(hub, []);
+        for (const source of members.get(edge.source) || [edge.source]) {link(source, hub); if (reverse) link(hub, source);}
+        for (const target of members.get(edge.target) || [edge.target]) {link(hub, target); if (reverse) link(target, hub);}
+      } else {
+        link(edge.source, edge.target); if (reverse) link(edge.target, edge.source);
       }
     }
     function visit(adjacent) {
@@ -77,10 +105,24 @@
       return seen;
     }
     const before = visit(backward), after = visit(forward);
-    return {
-      nodes: new Set([...before, ...after]),
-      edges: new Set(graph.edges.filter(e => before.has(e.source) && before.has(e.target) || after.has(e.source) && after.has(e.target)).map(e => e.id)),
-    };
+    const nodes = new Set(graph.nodes.filter(node => before.has(node.id) || after.has(node.id)).map(node => node.id));
+    const edges = new Set(graph.edges.filter(edge => hubs.has(edge.id) ? before.has(hubs.get(edge.id)) || after.has(hubs.get(edge.id)) : before.has(edge.source) && before.has(edge.target) || after.has(edge.source) && after.has(edge.target)).map(edge => edge.id));
+    const groups = new Set([...members].filter(([id, items]) => items.some(node => nodes.has(node)) || graph.edges.some(edge => edges.has(edge.id) && (edge.source === id || edge.target === id))).map(([id]) => id));
+    const parents = new Map((graph.groups || []).map(group => [group.id, group.parentId]));
+    for (const id of groups) if (parents.get(id)) groups.add(parents.get(id));
+    return {nodes, edges, groups};
+  }
+
+  function groupMembers(graph) {
+    const members = new Map(), children = new Map((graph.groups || []).map(group => [group.id, []]));
+    const byId = new Map((graph.groups || []).map(group => [group.id, group]));
+    for (const group of graph.groups || []) if (group.parentId) children.get(group.parentId).push(group.id);
+    function visit(id) {
+      if (!members.has(id)) members.set(id, [...byId.get(id).nodeIds, ...children.get(id).flatMap(visit)]);
+      return members.get(id);
+    }
+    for (const group of graph.groups || []) visit(group.id);
+    return members;
   }
 
   function layoutGraph(graph, compact = false, options = {}) {
@@ -88,6 +130,7 @@
     const vertical = (options.direction || (compact ? 'vertical' : 'horizontal')) === 'vertical';
     requireValue(layoutModes.includes(mode), '배치 방식을 확인하세요.');
     requireValue(!options.direction || layoutDirections.includes(options.direction), '배치 방향을 확인하세요.');
+    if (graph.groups?.length) return groupedLayout(graph, compact, options);
     if (mode === 'layered') return layeredLayout(graph, compact, vertical);
     const cardWidth = compact ? 180 : 225, cardHeight = compact ? 112 : 136;
     const gapX = mode === 'tree' && !vertical ? (compact ? 68 : 85) : (compact ? 20 : 45);
@@ -108,6 +151,69 @@
       return {...node, x: cell[0] * (cardWidth + gapX), y: cell[1] * (cardHeight + gapY)};
     });
     return finishLayout(graph, nodes, gridEdges(graph, nodes, cardWidth, cardHeight, gapX, gapY), cardWidth, cardHeight);
+  }
+
+  function groupedLayout(graph, compact, options) {
+    const width = compact ? 180 : 225, height = compact ? 112 : 136;
+    const vertical = (options.direction || (compact ? 'vertical' : 'horizontal')) === 'vertical';
+    const directed = !options.layout || options.layout === 'layered' || options.layout === 'tree';
+    const crossGap = compact ? 20 : 45, mainGap = compact ? 68 : 85;
+    const gapX = directed && !vertical ? mainGap : crossGap, gapY = directed && vertical ? mainGap : crossGap;
+    const stepX = width + gapX, stepY = height + gapY;
+    const owners = new Map(graph.groups.flatMap(group => group.nodeIds.map(id => [id, group.id])));
+    function arrange(parentId) {
+      const units = graph.nodes.filter(node => owners.get(node.id) === parentId).map(node => ({id: node.id, label: node.label, nodes: [{...node, x: 0, y: 0}], groups: [], left: 0, top: 0, right: width, bottom: height}));
+      for (const group of graph.groups.filter(group => group.parentId === parentId)) units.push({...arrange(group.id), id: group.id, label: group.label});
+      const unitOf = new Map();
+      for (const unit of units) for (const item of [...unit.nodes, ...unit.groups]) unitOf.set(item.id, unit.id);
+      const edges = graph.edges.flatMap(edge => {
+        const source = unitOf.get(edge.source), target = unitOf.get(edge.target);
+        return source && target && source !== target ? [{...edge, source, target}] : [];
+      });
+      const coarse = layoutGraph({...graph, groups: undefined, nodes: units.map(unit => ({id: unit.id, label: unit.label, type: '배치'})), edges}, compact, options);
+      const minX = coarse.nodes.length ? Math.min(...coarse.nodes.map(node => node.x)) : 0;
+      const minY = coarse.nodes.length ? Math.min(...coarse.nodes.map(node => node.y)) : 0;
+      const nodes = [], groups = [], byId = new Map(units.map(unit => [unit.id, unit]));
+      function offsets(axis, minimum, step, before, after) {
+        const spans = new Map();
+        for (const position of coarse.nodes) {
+          const cell = Math.round((position[axis] - minimum) / step), unit = byId.get(position.id), span = spans.get(cell);
+          spans.set(cell, {lo: Math.min(span?.lo ?? Infinity, unit[before]), hi: Math.max(span?.hi ?? -Infinity, unit[after])});
+        }
+        let cursor = 0, previous = -1;
+        const result = new Map();
+        for (const [cell, span] of [...spans].sort((a, b) => a[0] - b[0])) {
+          cursor += (cell - previous - 1) * step;
+          const offset = Math.ceil((cursor - span.lo) / step) * step;
+          result.set(cell, offset); cursor = offset + span.hi + 20; previous = cell;
+        }
+        return result;
+      }
+      const columns = offsets('x', minX, stepX, 'left', 'right'), rows = offsets('y', minY, stepY, 'top', 'bottom');
+      for (const position of coarse.nodes) {
+        const unit = byId.get(position.id);
+        const dx = columns.get(Math.round((position.x - minX) / stepX));
+        const dy = rows.get(Math.round((position.y - minY) / stepY));
+        nodes.push(...unit.nodes.map(node => ({...node, x: node.x + dx, y: node.y + dy})));
+        groups.push(...unit.groups.map(group => ({...group, x: group.x + dx, y: group.y + dy})));
+      }
+      const items = [...nodes.map(node => ({x: node.x, y: node.y, width, height})), ...groups];
+      let left = items.length ? Math.min(...items.map(item => item.x)) : 0;
+      let top = items.length ? Math.min(...items.map(item => item.y)) : 0;
+      let right = items.length ? Math.max(...items.map(item => item.x + item.width)) : width;
+      let bottom = items.length ? Math.max(...items.map(item => item.y + item.height)) : height / 2;
+      if (parentId !== undefined) {
+        left -= 20; top -= 52; right += 20; bottom += 20;
+        const group = graph.groups.find(group => group.id === parentId);
+        groups.unshift({...group, x: left, y: top, width: right - left, height: bottom - top});
+      }
+      const dx = Math.ceil(left / stepX) * stepX, dy = Math.ceil(top / stepY) * stepY;
+      for (const item of [...nodes, ...groups]) {item.x -= dx; item.y -= dy;}
+      left -= dx; right -= dx; top -= dy; bottom -= dy;
+      return {nodes, groups, left, top, right, bottom};
+    }
+    const {nodes, groups} = arrange(undefined);
+    return finishLayout(graph, nodes, gridEdges(graph, nodes, width, height, gapX, gapY, groups), width, height, groups);
   }
 
   function forestPositions(graph, radial, vertical, width, height, gapX, gapY) {
@@ -182,8 +288,8 @@
     return points.map(([x, y]) => [x * scale, y * scale]);
   }
 
-  function gridEdges(graph, nodes, width, height, gapX, gapY) {
-    const byId = new Map(nodes.map(node => [node.id, node]));
+  function gridEdges(graph, nodes, width, height, gapX, gapY, groups = []) {
+    const byId = new Map([...nodes.map(node => ({...node, width, height})), ...groups].map(item => [item.id, item]));
     const intersects = (a, b, node) => {
       let lo = 0, hi = 1;
       for (let axis = 0; axis < 2; axis++) {
@@ -196,18 +302,20 @@
     };
     return graph.edges.map(edge => {
       const a = byId.get(edge.source), b = byId.get(edge.target);
-      const ac = [a.x + width / 2, a.y + height / 2], bc = [b.x + width / 2, b.y + height / 2];
-      if (a === b) return {points: [[a.x + width, a.y + height * .35], [a.x + width + gapX * .8, a.y + height * .35], [a.x + width + gapX * .8, a.y + height * .65], [a.x + width, a.y + height * .65]], label: [a.x + width + gapX / 2, a.y + height * .35 - 12], curve: true};
-      const port = (center, other) => {
-        const dx = other[0] - center[0], dy = other[1] - center[1], scale = 1 / Math.max(Math.abs(dx) / (width / 2), Math.abs(dy) / (height / 2));
+      const ac = [a.x + a.width / 2, a.y + a.height / 2], bc = [b.x + b.width / 2, b.y + b.height / 2];
+      if (a === b) return {points: [[a.x + a.width, a.y + a.height * .35], [a.x + a.width + gapX * .8, a.y + a.height * .35], [a.x + a.width + gapX * .8, a.y + a.height * .65], [a.x + a.width, a.y + a.height * .65]], label: [a.x + a.width + gapX / 2, a.y + a.height * .35 - 12], curve: true};
+      const port = (center, other, box) => {
+        const dx = other[0] - center[0], dy = other[1] - center[1], scale = 1 / Math.max(Math.abs(dx) / (box.width / 2), Math.abs(dy) / (box.height / 2));
         return [center[0] + dx * scale, center[1] + dy * scale];
       };
-      let points = [port(ac, bc), port(bc, ac)];
-      if (nodes.some(node => node !== a && node !== b && intersects(ac, bc, node))) {
-        const right = b.x >= a.x, start = [a.x + (right ? width : 0), ac[1]], end = [b.x + (right && b.x !== a.x ? 0 : width), bc[1]];
-        const exit = start[0] + (right ? gapX / 2 : -gapX / 2), entry = end[0] + (right && b.x !== a.x ? -gapX / 2 : gapX / 2);
+      let points = [port(ac, bc, a), port(bc, ac, b)];
+      if (nodes.some(node => node.id !== a.id && node.id !== b.id && intersects(points[0], points[1], node))) {
+        const sameColumn = a.x === b.x && a.width === b.width, right = bc[0] >= ac[0];
+        const start = [a.x + (right ? a.width : 0), ac[1]], end = [b.x + (right && !sameColumn ? 0 : b.width), bc[1]];
+        const corridor = (x, after) => (after ? Math.ceil((x + gapX / 2) / (width + gapX)) : Math.floor((x + gapX / 2) / (width + gapX))) * (width + gapX) - gapX / 2;
+        const exit = corridor(start[0], right), entry = corridor(end[0], !right || sameColumn);
         const lane = Math.round((ac[1] + bc[1]) / 2 / (height + gapY)) * (height + gapY) - gapY / 2;
-        points = b.x === a.x ? [start, [exit, start[1]], [exit, end[1]], end] : [start, [exit, start[1]], [exit, lane], [entry, lane], [entry, end[1]], end];
+        points = sameColumn ? [start, [exit, start[1]], [exit, end[1]], end] : [start, [exit, start[1]], [exit, lane], [entry, lane], [entry, end[1]], end];
       }
       const pairs = points.slice(1).map((point, i) => ({a: points[i], b: point, length: Math.hypot(point[0] - points[i][0], point[1] - points[i][1])}));
       const longest = pairs.sort((a, b) => b.length - a.length)[0];
@@ -333,10 +441,11 @@
     return finishLayout(graph, nodes, edges, cardWidth, cardHeight);
   }
 
-  function finishLayout(graph, nodes, edges, cardWidth, cardHeight) {
+  function finishLayout(graph, nodes, edges, cardWidth, cardHeight, groups = []) {
     const margin = 50;
     let left = 0, top = 0, right = cardWidth + margin, bottom = cardHeight + margin;
     for (const node of nodes) {left = Math.min(left, node.x - margin); top = Math.min(top, node.y - margin);}
+    for (const group of groups) {left = Math.min(left, group.x - margin); top = Math.min(top, group.y - margin); right = Math.max(right, group.x + group.width); bottom = Math.max(bottom, group.y + group.height);}
     for (const node of nodes) {right = Math.max(right, node.x + cardWidth); bottom = Math.max(bottom, node.y + cardHeight);}
     edges.forEach((edge, i) => {
       for (const [x, y] of edge.points) {left = Math.min(left, x - margin); top = Math.min(top, y - margin); right = Math.max(right, x); bottom = Math.max(bottom, y);}
@@ -346,11 +455,12 @@
       }
     });
     for (const node of nodes) {node.x -= left; node.y -= top;}
+    for (const group of groups) {group.x -= left; group.y -= top;}
     for (const edge of edges) {
       edge.points = edge.points.map(([x, y]) => [x - left, y - top]);
       edge.label = [edge.label[0] - left, edge.label[1] - top];
     }
-    return {nodes, edges, cardWidth, cardHeight, width: right - left + margin, height: bottom - top + margin};
+    return {nodes, edges, groups, cardWidth, cardHeight, width: right - left + margin, height: bottom - top + margin};
   }
 
   const api = Object.freeze({limits, layoutModes, layoutDirections, validateGraph, connectedPath, layoutGraph});

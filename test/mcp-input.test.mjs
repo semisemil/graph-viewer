@@ -12,7 +12,8 @@ test('Mermaid files and inline text preserve labels and relationships and reject
   success(await client.call('graph_publish', {graphPath: file, graphId: 'mermaid', title: '응답 조사', expectedRevision: 0}));
   const snapshot = success(await client.call('graph_read', {graphId: 'mermaid'})).snapshot;
   assert.equal(snapshot.graph.title, '응답 조사');
-  assert.deepEqual(snapshot.graph.nodes.map(({id, label}) => [id, label]), [['A', '관찰\n결과'], ['B', '판단'], ['Backend', '백엔드'], ['C', '완료'], ['D', '대기']]);
+  assert.deepEqual(snapshot.graph.nodes.map(({id, label}) => [id, label]), [['A', '관찰\n결과'], ['B', '판단'], ['C', '완료'], ['D', '대기']]);
+  assert.deepEqual(snapshot.graph.groups, [{id: 'Backend', label: '백엔드', nodeIds: ['A', 'B']}]);
   assert.deepEqual(snapshot.graph.edges.map(({source, target, label, direction}) => [source, target, label, direction]), [
     ['A', 'B', '확인 근거', 'forward'], ['Backend', 'C', '', 'forward'], ['B', 'C', '', 'both'], ['C', 'D', '', 'none'], ['A', 'B', '', 'forward'],
   ]);
@@ -26,6 +27,19 @@ test('Mermaid files and inline text preserve labels and relationships and reject
   const updated = success(await client.call('graph_read', {graphId: 'mermaid'})).snapshot;
   assert.equal(updated.revision, 2);
   assert.deepEqual(updated.graph.edges.map(edge => [edge.source, edge.target]), [['A', 'C'], ['B', 'C']]);
+  const nested = 'flowchart TB\n subgraph Outer[프로젝트]\n subgraph Inner[서비스]\n A[요청] --> B[검증]\n end\n end\n subgraph Empty[비어 있는 그룹]\n end\n Inner --> Empty';
+  success(await client.call('graph_publish', {mermaid: nested, graphId: 'mermaid', expectedRevision: 2}));
+  const grouped = success(await client.call('graph_read', {graphId: 'mermaid'})).snapshot;
+  assert.deepEqual(grouped.graph.groups, [
+    {id: 'Inner', label: '서비스', nodeIds: ['A', 'B'], parentId: 'Outer'},
+    {id: 'Outer', label: '프로젝트', nodeIds: []},
+    {id: 'Empty', label: '비어 있는 그룹', nodeIds: []},
+  ]);
+  for (const change of [graph => {graph.groups[0].parentId = 'Inner';}, graph => {graph.groups[0].nodeIds.push('missing');}]) {
+    const invalid = structuredClone(grouped.graph); change(invalid);
+    assert.equal((await client.call('graph_publish', {graph: invalid, expectedRevision: 3})).isError, true);
+    assert.deepEqual(success(await client.call('graph_read', {graphId: 'mermaid'})).snapshot, grouped);
+  }
 });
 
 test('project-local storage separates the same chat and graph and restores its UI state after reconnect', async t => {

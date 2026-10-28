@@ -273,6 +273,44 @@ test('layout controls preserve multi-root graphs, selection and search and resto
   assert.deepEqual(f.errors, []);
 });
 
+test('Mermaid groups contain their members, keep nested boundaries and group links in every layout and the minimap', {skip: !packagePath, timeout: 60000}, async t => {
+  const f = await browserFixture(t);
+  const mermaid = 'flowchart LR\n subgraph Outer[공통 기반]\n subgraph API[API 서비스]\n A[요청] --> B[검증]\n end\n C[저장소]\n B --> C\n end\n subgraph App[사용자 앱]\n D[화면] --> E[완료]\n end\n API --> App\n C --> D';
+  success(await f.client.call('graph_publish', {graphId: f.graph.graphId, mermaid, expectedRevision: 1}));
+  await f.frame.locator('.group-box[data-id="Outer"]').waitFor();
+  const graph = success(await f.client.call('graph_read')).snapshot.graph;
+  assert.equal(graph.nodes.length, 5);
+  assert.equal(await f.frame.locator('.node[data-id="API"]').count(), 0);
+  assert.equal(await f.frame.locator('.mini-group').count(), 3);
+  assert.equal(await f.frame.locator('.group-title').filter({hasText: 'API 서비스'}).count(), 1);
+  await f.frame.locator('.node[data-id="A"]').dispatchEvent('click');
+  await storedUntil(f.client, item => item.state.selectedNodeId === 'A');
+  assert.equal(await f.frame.locator('.group-box.related').count(), 3);
+  assert.equal(await f.frame.locator('.mini-group.related').count(), 3);
+  for (const mode of ['layered', 'tree', 'radial', 'network']) {
+    await f.frame.getByRole('combobox', {name: '배치 방식'}).selectOption(mode);
+    await storedUntil(f.client, item => item.state.views.large.layout === mode);
+    assert.equal(await f.frame.locator('.node').count(), 5);
+    assert.equal(await f.frame.locator('.connection').count(), graph.edges.length);
+    const contained = await f.frame.locator('.graph').evaluate((svg, groups) => {
+      const shadow = svg.getRootNode();
+      const box = id => {
+        const rect = shadow.querySelector(`.group-box[data-id="${id}"] .group-border`);
+        return {x: rect.x.baseVal.value, y: rect.y.baseVal.value, w: rect.width.baseVal.value, h: rect.height.baseVal.value};
+      };
+      const within = (a, b) => a.x >= b.x && a.y >= b.y && a.x + a.w <= b.x + b.w && a.y + a.h <= b.y + b.h;
+      const outer = box('Outer'), app = box('App');
+      return groups.every(group => group.nodeIds.every(id => {
+        const node = shadow.querySelector(`.node[data-id="${id}"]`), m = node.transform.baseVal[0].matrix, rect = node.querySelector('rect');
+        return within({x: m.e, y: m.f, w: rect.width.baseVal.value, h: rect.height.baseVal.value}, box(group.id));
+      }) && (!group.parentId || within(box(group.id), box(group.parentId)))) && !(app.x < outer.x + outer.w && app.x + app.w > outer.x && app.y < outer.y + outer.h && app.y + app.h > outer.y);
+    }, graph.groups);
+    assert.equal(contained, true);
+    await bypassesCards(f.frame.locator('.graph-viewer'));
+  }
+  assert.deepEqual(f.errors, []);
+});
+
 test('node details use a scrollable custom tooltip that supports hover, keyboard and narrow screens', {skip: !packagePath, timeout: 30000}, async t => {
   const f = await browserFixture(t);
   f.page.setDefaultTimeout(7000);
