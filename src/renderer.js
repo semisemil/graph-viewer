@@ -31,6 +31,7 @@
       button,input,select{font:inherit;color:inherit}.icon{width:16px;height:16px;flex:none;pointer-events:none}
       button{display:inline-flex;align-items:center;justify-content:center;height:32px;min-width:32px;padding:6px;background:transparent;border:1px solid transparent;border-radius:8px;cursor:pointer;transition:background 140ms ease,color 140ms ease,border-color 140ms ease}
       button[hidden]{display:none}button:hover{background:var(--control-hover)}button:active{background:color-mix(in srgb,var(--focus) 15%,var(--control))}button:focus-visible,select:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+      button:disabled{opacity:.45;cursor:default}.export-status{position:absolute;z-index:4;top:12px;right:12px;max-width:calc(100% - 24px);padding:10px 14px;border:1px solid var(--control-border);border-radius:9px;background:var(--surface);color:var(--text);box-shadow:0 4px 16px var(--tooltip-shadow);overflow-wrap:anywhere}.export-status[hidden]{display:none}
       .search-field{position:relative;display:flex;align-items:center;flex:1;min-width:0;max-width:280px;height:36px;border:1px solid var(--control-border);border-radius:9px;background:var(--control);transition:border-color 140ms ease,box-shadow 140ms ease}
       .search-field:focus-within{border-color:var(--focus);box-shadow:0 0 0 3px color-mix(in srgb,var(--focus) 14%,transparent)}.search-field>.icon{margin-left:10px;color:var(--muted)}
       input{width:100%;min-width:0;height:100%;padding:0 34px 0 8px;background:transparent;border:0;outline:none}input::placeholder{color:var(--muted)}
@@ -82,9 +83,10 @@
       <div class="search-field">${icon('<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/>')}<input aria-label="노드 검색" placeholder="노드 검색"><button class="search-clear" type="button" aria-label="검색어 지우기" title="검색어 지우기" hidden>${icon('<path d="m8 8 8 8m0-8-8 8"/>')}</button></div>
       <div class="layout-controls"><label class="layout-field">배치<span class="select-wrap"><select aria-label="배치 방식"><option value="layered">계층형</option><option value="tree">트리형</option><option value="radial">방사형</option><option value="network">네트워크형</option></select>${icon('<path d="m8 10 4 4 4-4"/>')}</span></label><label class="layout-field direction-field">방향<span class="select-wrap"><select aria-label="배치 방향"><option value="horizontal">가로</option><option value="vertical">세로</option></select>${icon('<path d="m8 10 4 4 4-4"/>')}</span></label></div>
       <div class="theme-field"><select aria-label="화면 테마"><option value="auto">자동 테마</option><option value="light">라이트</option><option value="dark">다크</option></select>${icon('<path d="m8 10 4 4 4-4"/>')}</div>
+      <button class="export-image" type="button" aria-label="그래프 이미지 저장" title="전체 그래프를 PNG로 저장">${icon('<path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/>')}</button>
     </div></header><div class="legend" aria-label="노드 유형"></div><div class="canvas"><svg class="graph" role="group"><defs></defs><g class="world"></g></svg><div class="empty" hidden>표시할 노드가 없습니다.</div>
       <div class="tools" role="toolbar" aria-label="그래프 보기"><button type="button" aria-label="확대" title="확대">${icon('<path d="M12 5v14M5 12h14"/>')}</button><button type="button" aria-label="축소" title="축소">${icon('<path d="M5 12h14"/>')}</button><button type="button" aria-label="전체 맞춤" title="전체 맞춤">${icon('<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>')}</button><button class="zoom" type="button" aria-label="100%로 보기" title="100%로 보기"></button></div>
-      <svg class="minimap" role="img" aria-label="그래프 미니맵" tabindex="0"></svg><div class="node-tooltip" id="${id}-tooltip" role="tooltip" hidden><div class="tooltip-scroll"></div></div></div></div>`;
+      <svg class="minimap" role="img" aria-label="그래프 미니맵" tabindex="0"></svg><div class="node-tooltip" id="${id}-tooltip" role="tooltip" hidden><div class="tooltip-scroll"></div></div><div class="export-status" role="status" hidden></div></div></div>`;
 
     const shell = shadow.querySelector('.shell');
     const svg = shadow.querySelector('.graph');
@@ -98,6 +100,8 @@
     const themeSelect = shadow.querySelector('[aria-label="화면 테마"]');
     const layoutSelect = shadow.querySelector('[aria-label="배치 방식"]');
     const directionSelect = shadow.querySelector('[aria-label="배치 방향"]');
+    const exportButton = shadow.querySelector('.export-image');
+    const exportStatus = shadow.querySelector('.export-status');
     const measure = document.createElement('canvas').getContext('2d');
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
     const colorScheme = window.matchMedia('(prefers-color-scheme: dark)');
@@ -113,6 +117,7 @@
     let groupElements = [], miniGroups = [];
     let flowSegments = [], activeFlow = [];
     let flow, surfaceWidth = 0, surfaceHeight = 0;
+    let exporting = false, exportTimer = 0;
 
     function applyTheme() {
       const automatic = ['light', 'dark'].includes(hostTheme) ? hostTheme : colorScheme.matches ? 'dark' : 'light';
@@ -421,12 +426,76 @@
       }
       return {d, start, end, label: route.label};
     }
+    async function exportImage() {
+      if (destroyed || !graph.nodes.length && !graph.groups?.length) throw new Error('저장할 그래프가 없습니다.');
+      const filename = `graph-${[...graph.title.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-').replace(/[. ]+$/g, '')].slice(0, 100).join('') || 'graph'}.png`;
+      const width = layout.width + 64, height = layout.height + 64;
+      const scale = Math.min(2, 16384 / width, 16384 / height, Math.sqrt(32 * 1024 * 1024 / (width * height)));
+      const pixelWidth = Math.max(1, Math.floor(width * scale)), pixelHeight = Math.max(1, Math.floor(height * scale));
+      const copy = svg.cloneNode(true);
+      const source = [svg, ...svg.querySelectorAll('*')], copies = [copy, ...copy.querySelectorAll('*')];
+      const properties = ['fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-opacity', 'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'stroke-dashoffset', 'opacity', 'filter', 'font-family', 'font-size', 'font-weight', 'font-style', 'letter-spacing', 'text-anchor', 'paint-order', 'stop-color', 'stop-opacity'];
+      for (let i = 0; i < source.length; i++) {
+        const style = window.getComputedStyle(source[i]);
+        copies[i].style.cssText = properties.map(property => `${property}:${style.getPropertyValue(property).replace(/url\(["']?[^#)]*#([^"')]+)["']?\)/g, 'url(#$1)')}`).join(';');
+      }
+      copy.setAttribute('xmlns', SVG);
+      copy.setAttribute('width', pixelWidth); copy.setAttribute('height', pixelHeight);
+      copy.setAttribute('viewBox', `-32 -32 ${width} ${height}`);
+      const scene = copy.querySelector('.world');
+      scene.removeAttribute('transform'); scene.classList.remove('overview');
+      copy.querySelectorAll('.edge-flow').forEach(node => node.remove());
+      copy.insertBefore(element(document, 'rect', {x: -32, y: -32, width, height, fill: window.getComputedStyle(host).getPropertyValue('--canvas').trim()}), scene);
+      const data = new window.Blob([new window.XMLSerializer().serializeToString(copy)], {type: 'image/svg+xml;charset=utf-8'});
+      const url = window.URL.createObjectURL(data);
+      const image = new window.Image();
+      const bitmap = document.createElement('canvas');
+      try {
+        await new Promise((resolve, reject) => {image.onload = resolve; image.onerror = () => reject(new Error('그래프 이미지를 만들지 못했습니다.')); image.src = url;});
+        bitmap.width = pixelWidth; bitmap.height = pixelHeight;
+        const context = bitmap.getContext('2d');
+        if (!context) throw new Error('이 환경에서 이미지 저장을 지원하지 않습니다.');
+        context.drawImage(image, 0, 0);
+        const blob = await new Promise(resolve => bitmap.toBlob(resolve, 'image/png'));
+        if (!blob) throw new Error('그래프가 커서 PNG를 만들지 못했습니다.');
+        return {blob, filename};
+      } finally {
+        image.onload = image.onerror = null; image.src = '';
+        bitmap.width = bitmap.height = 0;
+        window.URL.revokeObjectURL(url);
+      }
+    }
+    async function saveImage() {
+      if (exporting || destroyed) return;
+      exporting = true; exportButton.disabled = true; exportButton.setAttribute('aria-busy', 'true');
+      window.clearTimeout(exportTimer); exportStatus.hidden = false; exportStatus.textContent = 'PNG 이미지 생성 중...';
+      try {
+        const result = await exportImage();
+        if (destroyed) return;
+        if (options.onExport) await options.onExport(result);
+        else {
+          const url = window.URL.createObjectURL(result.blob), link = document.createElement('a');
+          try {link.href = url; link.download = result.filename; link.click();}
+          finally {window.URL.revokeObjectURL(url);}
+        }
+        if (destroyed) return;
+        exportStatus.textContent = 'PNG 저장을 요청했습니다.';
+        exportTimer = window.setTimeout(() => {exportStatus.hidden = true;}, 4000);
+      } catch (error) {
+        if (!destroyed) exportStatus.textContent = `이미지를 저장하지 못했습니다. ${error.message}`;
+      } finally {
+        exporting = false;
+        if (!destroyed) {exportButton.disabled = !graph.nodes.length && !graph.groups?.length; exportButton.removeAttribute('aria-busy');}
+      }
+    }
+    exportButton.addEventListener('click', saveImage);
     function renderGraph(fitAll = false) {
       layout = model.layoutGraph(graph, compact, {layout: layoutType, direction});
       nodeMap = new Map(graph.nodes.map(node => [node.id, node]));
       viewMap = new Map(layout.nodes.map(node => [node.id, node]));
       svg.setAttribute('aria-label', graph.title);
       shadow.querySelector('.empty').hidden = graph.nodes.length !== 0 || layout.groups.length !== 0;
+      exportButton.disabled = exporting || !graph.nodes.length && !layout.groups.length;
       const legend = shadow.querySelector('.legend');
       legend.replaceChildren();
       colors = new Map();
@@ -634,11 +703,13 @@
     return {
       update,
       setHostTheme,
+      exportImage,
       getState() { return {selectedNodeId, camera: cameraCopy(), query, layout: layoutType, direction}; },
       destroy() {
         if (destroyed) return;
         destroyed = true;
         stopAnimation();
+        window.clearTimeout(exportTimer);
         hideTooltip();
         resize.disconnect();
         document.removeEventListener('visibilitychange', visibilityChanged);
