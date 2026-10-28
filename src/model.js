@@ -129,11 +129,88 @@
         return {...node, x: compact ? cross : main, y: compact ? main : cross};
       });
     });
-    return {
-      nodes, cardWidth, cardHeight,
-      width: Math.max(cardWidth + margin * 2, ...nodes.map(n => n.x + cardWidth + margin)),
-      height: Math.max(cardHeight + margin * 2, ...nodes.map(n => n.y + cardHeight + margin)),
-    };
+    const positions = new Map(nodes.map(node => [node.id, {
+      main: compact ? node.y : node.x, cross: compact ? node.x : node.y,
+      rank: ranks[componentOf.get(node.id)],
+    }]));
+    const mainSize = compact ? cardHeight : cardWidth, crossCard = compact ? cardWidth : cardHeight;
+    const ports = new Map(), lanes = {before: [], after: []}, gaps = new Map();
+    const routes = graph.edges.map(edge => {
+      const from = positions.get(edge.source), to = positions.get(edge.target);
+      const same = to.rank === from.rank;
+      const route = {from, to, same, long: to.rank > from.rank + 1};
+      for (const [name, node, other, side] of [
+        ['start', from, to, 1], ['end', to, from, same ? 1 : 0],
+      ]) {
+        const key = `${name === 'start' ? edge.source : edge.target}:${side}`;
+        if (!ports.has(key)) ports.set(key, []);
+        ports.get(key).push({route, name, node, other, side});
+      }
+      return route;
+    });
+    for (const entries of ports.values()) {
+      entries.sort((a, b) => a.other.cross - b.other.cross || a.other.rank - b.other.rank);
+      entries.forEach(({route, name, node, side}, i) => {
+        route[name] = [node.main + side * mainSize, node.cross + crossCard * (.2 + .6 * (i + 1) / (entries.length + 1))];
+      });
+    }
+    const crossEnd = margin + crossSize;
+    for (const route of routes.filter(route => route.long).sort((a, b) => a.from.rank - b.from.rank || a.to.rank - b.to.rank)) {
+      const lo = route.from.rank, hi = route.to.rank;
+      const side = route.start[1] + route.end[1] <= margin + crossEnd ? 'before' : 'after';
+      const occupied = lanes[side];
+      let track = occupied.findIndex(end => end < lo);
+      if (track < 0) track = occupied.length;
+      occupied[track] = hi - 1;
+      route.outer = side === 'before' ? margin - 30 - track * 22 : crossEnd + 30 + track * 22;
+    }
+    for (const route of routes) {
+      const entries = route.same ? [['turn', route.from.rank]] : route.long ? [
+        ['exit', route.from.rank], ['entry', route.to.rank - 1],
+      ] : [];
+      for (const [name, gap] of entries) {
+        if (!gaps.has(gap)) gaps.set(gap, []);
+        gaps.get(gap).push({route, name});
+      }
+    }
+    for (const [gap, entries] of gaps) {
+      entries.sort((a, b) => (a.route.outer ?? a.route.start[1]) - (b.route.outer ?? b.route.start[1]));
+      entries.forEach(({route, name}, i) => {
+        route[name] = margin + gap * (mainSize + mainGap) + mainSize + 12 + (mainGap - 24) * (i + 1) / (entries.length + 1);
+      });
+    }
+    const point = ([main, cross]) => compact ? [cross, main] : [main, cross];
+    const edges = routes.map(route => {
+      const {start, end} = route;
+      let points, label;
+      if (route.same) {
+        points = [start, [route.turn, start[1]], [route.turn, end[1]], end];
+        label = [route.turn + 12, (start[1] + end[1]) / 2 - 8];
+      } else if (route.long) {
+        points = [start, [route.exit, start[1]], [route.exit, route.outer], [route.entry, route.outer], [route.entry, end[1]], end];
+        label = [(route.exit + route.entry) / 2, route.outer - 8];
+      } else {
+        const middle = (start[0] + end[0]) / 2;
+        points = [start, [middle, start[1]], [middle, end[1]], end];
+        label = [middle, (start[1] + end[1]) / 2 - 12];
+      }
+      return {points: points.map(point), label: point(label), curve: !route.same && !route.long};
+    });
+    let left = 0, top = 0, right = cardWidth + margin, bottom = cardHeight + margin;
+    for (const node of nodes) {right = Math.max(right, node.x + cardWidth); bottom = Math.max(bottom, node.y + cardHeight);}
+    edges.forEach((edge, i) => {
+      for (const [x, y] of edge.points) {left = Math.min(left, x - margin); top = Math.min(top, y - margin); right = Math.max(right, x); bottom = Math.max(bottom, y);}
+      if (graph.edges[i].label || graph.edges[i].type) {
+        left = Math.min(left, edge.label[0] - 60 - margin); top = Math.min(top, edge.label[1] - 12 - margin);
+        right = Math.max(right, edge.label[0] + 60); bottom = Math.max(bottom, edge.label[1]);
+      }
+    });
+    for (const node of nodes) {node.x -= left; node.y -= top;}
+    for (const edge of edges) {
+      edge.points = edge.points.map(([x, y]) => [x - left, y - top]);
+      edge.label = [edge.label[0] - left, edge.label[1] - top];
+    }
+    return {nodes, edges, cardWidth, cardHeight, width: right - left + margin, height: bottom - top + margin};
   }
 
   const api = Object.freeze({limits, validateGraph, connectedPath, layoutGraph});

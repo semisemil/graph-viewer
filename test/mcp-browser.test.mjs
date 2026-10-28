@@ -143,13 +143,81 @@ test('the maximum graph keeps nodes selectable in overview and restores labels a
   for (let gap = 1; edges.length < 2000; gap++) for (let i = 0; i + gap < nodes.length && edges.length < 2000; i++) edges.push({id: `e${edges.length}`, source: `n${i}`, target: `n${i + gap}`});
   const f = await browserFixture(t, {graph: {schemaVersion: 1, graphId: 'maximum', title: '최대 크기 그래프', nodes, edges}});
   assert.equal(await f.frame.getByRole('button', {name: /^작업: 작업 /}).count(), 500);
+  await f.frame.getByRole('button', {name: '전체 맞춤'}).click();
+  await storedUntil(f.client, snapshot => snapshot.state.views.large.camera?.zoom < .2);
   const title = f.frame.locator('.node[data-id="n0"] .node-title');
   assert.equal(await title.evaluate(node => getComputedStyle(node).display), 'none');
+  assert.equal(await f.frame.locator('.edge-flow:visible').count(), 0);
   await f.frame.locator('.node[data-id="n0"]').dispatchEvent('click');
   await storedUntil(f.client, snapshot => snapshot.state.selectedNodeId === 'n0' && snapshot.state.views.large.camera?.zoom >= 1);
   assert.notEqual(await title.evaluate(node => getComputedStyle(node).display), 'none');
+  assert.equal(await f.frame.locator('.edge-flow:visible').count(), 1);
   assert.equal(await f.frame.locator('.node.connected').count(), 499);
   assert.equal(await f.frame.locator('.mini-node.connected').count(), 499);
+  assert.deepEqual(f.errors, []);
+});
+
+test('long connections bypass cards in both orientations and a long graph opens at a readable scale', {skip: !packagePath, timeout: 30000}, async t => {
+  const nodes = [
+    {id: 'context', type: '자료', label: '기존 구조와 제약 확인'},
+    {id: 'request', type: '요청', label: '직전 작업과 변경 요구'},
+    ...Array.from({length: 10}, (_, i) => ({id: `n${i}`, type: '작업', label: `작업 ${i}: 설계 변경의 근거와 검사 결과 확인`})),
+  ];
+  const edges = [
+    {id: 'start', source: 'context', target: 'n0'},
+    ...Array.from({length: 9}, (_, i) => ({id: `step${i}`, source: `n${i}`, target: `n${i + 1}`})),
+    ...[2, 4, 6, 9].map(i => ({id: `request${i}`, source: 'request', target: `n${i}`, label: '관련 변경'})),
+  ];
+  const graph = {schemaVersion: 1, graphId: 'long-connections', title: '긴 작업 경로와 관련 변경', nodes, edges};
+  const f = await browserFixture(t, {graph, hostTheme: 'light'});
+  const initial = await f.frame.locator('body').evaluate(() => graphPanelView.getState());
+  assert.ok(initial.camera.zoom >= .75);
+  assert.ok((await f.frame.locator('.node[data-id="n0"] .node-title tspan').count()) > 1);
+  await f.frame.getByRole('button', {name: '전체 맞춤'}).click();
+  await storedUntil(f.client, snapshot => snapshot.state.views.large.camera?.zoom < .5);
+  await f.frame.getByRole('button', {name: '100%로 보기'}).click();
+  await storedUntil(f.client, snapshot => Math.abs((snapshot.state.views.large.camera?.zoom || 0) - 1) < 1e-8);
+
+  async function bypassesCards(locator) {
+    const crossed = await locator.locator('.world .edge').evaluateAll(paths => {
+      const shadow = paths[0].getRootNode();
+      const cards = [...shadow.querySelectorAll('.node')].map(node => {
+        const {e: x, f: y} = node.transform.baseVal[0].matrix, rect = node.querySelector('rect');
+        return {id: node.dataset.id, x, y, width: rect.width.baseVal.value, height: rect.height.baseVal.value};
+      });
+      const collisions = [];
+      for (const path of paths) {
+        const edge = path.parentElement.dataset, length = path.getTotalLength();
+        for (const card of cards) {
+          if (card.id === edge.from || card.id === edge.to) continue;
+          for (let t = 0; t <= length; t += 3) {
+            const point = path.getPointAtLength(t);
+            if (point.x > card.x + 3 && point.x < card.x + card.width - 3 && point.y > card.y + 3 && point.y < card.y + card.height - 3) {
+              collisions.push({edge: edge.id, card: card.id});
+              break;
+            }
+          }
+        }
+      }
+      return collisions;
+    });
+    assert.deepEqual(crossed, []);
+  }
+  await bypassesCards(f.frame.locator('.graph-viewer'));
+  await f.frame.locator('body').evaluate((body, graph) => {
+    const container = document.createElement('main');
+    container.id = 'compact-check';
+    container.style.cssText = 'width:360px;height:700px';
+    body.append(container);
+    window.compactView = GraphPanel.mount(container, {graph, compact: true});
+  }, graph);
+  await bypassesCards(f.frame.locator('#compact-check'));
+  const cyclic = {...graph, edges: [...edges, {id: 'return', source: 'n5', target: 'n2'}, {id: 'self', source: 'n3', target: 'n3'}]};
+  await publish(f.client, cyclic, 1);
+  await f.frame.locator('.graph-viewer').first().locator('.connection[data-id="return"]').waitFor();
+  await bypassesCards(f.frame.locator('.graph-viewer').first());
+  await f.frame.locator('body').evaluate((body, graph) => compactView.update(graph), cyclic);
+  await bypassesCards(f.frame.locator('#compact-check'));
   assert.deepEqual(f.errors, []);
 });
 
