@@ -52,6 +52,9 @@
       .mini-node{stroke:var(--node-border);stroke-width:.6;vector-effect:non-scaling-stroke;opacity:.45}.mini-node.connected{stroke:var(--related);stroke-width:1.3;opacity:.9}
       .mini-node.selected{stroke:var(--selected);stroke-width:2;opacity:1;filter:drop-shadow(0 0 20px color-mix(in srgb,var(--selected) 60%,transparent))}
       .node{transition:opacity 160ms ease}.node>rect:first-child{transition:stroke 180ms ease,stroke-width 180ms ease,filter 180ms ease}
+      .group-box{pointer-events:none}.group-border{fill:var(--surface);fill-opacity:.45;stroke:var(--node-border);stroke-width:1.2;stroke-dasharray:6 4;rx:14}.group-title{fill:var(--muted);font-size:13px;font-weight:600}
+      .group-box.related .group-border{stroke:var(--related);stroke-width:1.8;stroke-dasharray:none}.group-box.related .group-title{fill:var(--text)}
+      .mini-group{fill:none;stroke:var(--node-border);stroke-width:.7;vector-effect:non-scaling-stroke}.mini-group.related{stroke:var(--related);stroke-width:1.2}
       .node.connected>rect:first-child{stroke:var(--related);stroke-width:2}.node[aria-pressed="true"]>rect:first-child{stroke:var(--selected);stroke-width:2.6;filter:drop-shadow(0 0 8px color-mix(in srgb,var(--selected) 40%,transparent))}.node.unrelated{opacity:.58}.node.search-miss{opacity:.2}
       .edge{transition:stroke 180ms ease,stroke-width 180ms ease;stroke-linecap:round;stroke-linejoin:round}.edge.related{stroke:var(--edge-active);stroke-width:2}
       .edge-flow{display:none;fill:none;stroke-width:2;stroke-linecap:round;stroke-dasharray:10 42;pointer-events:none}
@@ -107,6 +110,7 @@
     let tooltipAnchor = null, tooltipHovered = false, showTimer = 0, hideTimer = 0;
     let frame = 0, target = null, interacting = false, destroyed = false;
     let nodeElements = [], miniNodes = [], connections = [], miniConnections = [];
+    let groupElements = [], miniGroups = [];
     let flowSegments = [], activeFlow = [];
     let flow, surfaceWidth = 0, surfaceHeight = 0;
 
@@ -361,7 +365,7 @@
       flow.classList.toggle('related', !!path);
     }
     function updateHighlights() {
-      const related = selectedNodeId ? model.connectedPath(graph, selectedNodeId) : {nodes: new Set(), edges: new Set()};
+      const related = selectedNodeId ? model.connectedPath(graph, selectedNodeId) : {nodes: new Set(), edges: new Set(), groups: new Set()};
       const needle = query.trim().toLocaleLowerCase();
       for (const node of nodeElements) {
         const selected = node.dataset.id === selectedNodeId;
@@ -375,6 +379,7 @@
         node.classList.toggle('selected', node.dataset.id === selectedNodeId);
         node.classList.toggle('connected', node.dataset.id !== selectedNodeId && related.nodes.has(node.dataset.id));
       }
+      for (const group of [...groupElements, ...miniGroups]) group.classList.toggle('related', related.groups.has(group.dataset.id));
       for (const connection of [...connections, ...miniConnections]) {
         const active = related.edges.has(connection.dataset.id);
         connection.classList.toggle('related', active);
@@ -421,7 +426,7 @@
       nodeMap = new Map(graph.nodes.map(node => [node.id, node]));
       viewMap = new Map(layout.nodes.map(node => [node.id, node]));
       svg.setAttribute('aria-label', graph.title);
-      shadow.querySelector('.empty').hidden = graph.nodes.length !== 0;
+      shadow.querySelector('.empty').hidden = graph.nodes.length !== 0 || layout.groups.length !== 0;
       const legend = shadow.querySelector('.legend');
       legend.replaceChildren();
       colors = new Map();
@@ -440,6 +445,16 @@
       minimap.append(definitions);
       minimap.setAttribute('viewBox', `-16 -16 ${layout.width + 32} ${layout.height + 32}`);
       connections = []; miniConnections = []; nodeElements = []; miniNodes = []; flowSegments = []; activeFlow = [];
+      groupElements = []; miniGroups = [];
+      for (const data of layout.groups) {
+        const group = element(document, 'g', {class: 'group-box', 'data-id': data.id, role: 'group', 'aria-label': data.label});
+        group.append(element(document, 'rect', {class: 'group-border', x: data.x, y: data.y, width: data.width, height: data.height, rx: 14}));
+        const label = element(document, 'text', {class: 'group-title', x: data.x + 16, y: data.y + 24});
+        fitText(data.label, data.width - 32, '600 13px system-ui, sans-serif', 2).forEach((text, i) => label.append(element(document, 'tspan', {x: data.x + 16, dy: i ? 17 : 0}, text)));
+        group.append(label); world.append(group); groupElements.push(group);
+        const mini = element(document, 'rect', {class: 'mini-group', 'data-id': data.id, x: data.x, y: data.y, width: data.width, height: data.height, rx: 14});
+        minimap.append(mini); miniGroups.push(mini);
+      }
       graph.edges.forEach((edge, index) => {
         const geometry = edgeGeometry(index);
         const points = layout.edges[index].points;
@@ -635,6 +650,7 @@
         minimap.replaceChildren();
         tooltipScroll.replaceChildren();
         nodeElements = miniNodes = connections = miniConnections = [];
+        groupElements = miniGroups = [];
         flowSegments = activeFlow = [];
         graph = layout = nodeMap = viewMap = colors = flow = null;
         options = {};

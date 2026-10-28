@@ -12,6 +12,8 @@ description: Create and update interactive graphs from Mermaid flowcharts or JSO
 ## 생성과 갱신
 
 1. 단순한 노드와 연결은 Mermaid flowchart 또는 graph로 작성한다.
+   프로젝트나 영역을 한 그래프 안에서 구분하려면 subgraph를 사용한다.
+   그룹 제목, 중첩 테두리와 그룹 간 연결을 지원한다.
    상세 설명, 상태나 출처가 필요하면 [그래프 JSON 형식](references/graph-format.md)을 읽고 JSON을 작성한다.
    같은 그래프를 갱신할 때 graphId와 유지할 노드 ID를 보존한다.
    탐색 기록은 사용자에게 설명할 목표, 관찰, 실행 결과와 결론을 사용한다.
