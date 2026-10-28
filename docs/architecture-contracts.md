@@ -117,7 +117,7 @@ snapshot은 {graph,revision,state,stateRevision} 또는 null이다.
 파일 안의 원래 채팅 키를 읽을 때 대조한다.
 
 ```text
-{schemaVersion:1,chatRef,activeGraphId,graphs:[{graph,revision,state,stateRevision}]}
+{schemaVersion:1,chatRef,activeGraphId,graphs:[{graph,revision,state,stateRevision}],nativeViews:[{graphId,sessionId,lastReport?}]}
 ```
 
 ```json
@@ -131,6 +131,7 @@ snapshot은 {graph,revision,state,stateRevision} 또는 null이다.
 ```
 
 같은 채팅의 읽기와 변경은 하나의 큐에서 처리한다.
+nativeViews는 MCP의 그래프별 연결이며, 같은 그래프를 다시 열 때 연결 토큰을 재사용한다.
 이전 저장 자료에 배치 설정이 없으면 기본값을 적용한다.
 그래프 등록은 expectedRevision이 현재 revision과 같을 때만 진행하고 버전을 1 증가시킨다.
 선택과 뷰별 상태 변경은 필요한 필드만 수정하고 stateRevision을 증가시킨다.
@@ -138,7 +139,7 @@ snapshot은 {graph,revision,state,stateRevision} 또는 null이다.
 임시 파일을 flush하고 정상 파일을 교체한 뒤 committed를 반환한다.
 정상 파일을 읽지 못하면 백업을 검증하고 복구한 백업을 손상 원본으로 덮지 않는다.
 
-뷰마다 clientId로 세션을 연다.
+HTTP 뷰마다 clientId로 세션을 연다.
 같은 clientId의 새 세션은 이전 세션을 무효화한다.
 상태 쓰기는 채팅 큐 안에서 sessionId와 채팅/그래프/뷰를 대조한다.
 큰 화면은 페이지별 clientId를 사용한다.

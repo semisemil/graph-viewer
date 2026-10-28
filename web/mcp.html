@@ -74,14 +74,12 @@
     async function update(){
       while(openings.length){
         const candidate=openings.shift();
-        if(scope && !sameScope(scope,candidate.scope))continue;
+        if(sessionId)continue;
         try{
           const response=await call(candidate,{op:'sync'});
           const hidden=response._meta?.graphPanel;
           if(!hidden?.snapshot || !sameScope(hidden.scope,candidate.scope))throw new Error('그래프 연결 정보가 없습니다.');
-          const replaced=sessionId!==candidate.sessionId;
           scope=candidate.scope;sessionId=candidate.sessionId;stale=false;retry.hidden=true;
-          if(replaced){actions=[];snapshot=undefined;reported='';}
           apply(hidden.snapshot,true);
           document.body.dataset.threadId=scope.threadId;
         }catch(error){
@@ -149,7 +147,7 @@
       if(p){pending.delete(m.id);clearTimeout(p.timer);m.error?p.reject(new Error(m.error.message)):p.resolve(m.result);return;}
       if(m.method==='ui/notifications/tool-result'){
         const binding=m.params?._meta?.graphPanel;
-        if(binding?.scope && typeof binding.sessionId==='string'){
+        if(!sessionId && binding?.scope && typeof binding.sessionId==='string'){
           openings.push({scope:binding.scope,sessionId:binding.sessionId});schedule(0);
         }
       }else if(m.method==='ui/notifications/host-context-changed'){

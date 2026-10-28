@@ -49,6 +49,7 @@ main에는 서버, 렌더러, 스킬과 문서를 배치하며 marketplace는 �
 
 기본 검사는 CLI, HTTP, MCP와 Mermaid 입력을 다룹니다.
 프로젝트별 저장, 상태 복구, 이동한 배포본과 PATH에 Node가 없는 실행도 확인합니다.
+같은 채팅의 여러 MCP 뷰어에서 그래프별 연결, 상태 분리와 닫은 화면의 재열기를 확인합니다.
 
 브라우저 통합 검사는 GRAPH_PANEL_PLAYWRIGHT에 Playwright 패키지의 절대 경로를 지정하면 실행합니다.
 GRAPH_PANEL_CHROMIUM에는 사용할 Chromium 실행 파일을 지정할 수 있습니다.
