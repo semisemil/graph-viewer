@@ -133,12 +133,15 @@ test('acknowledged selection, camera and search survive server reconnect and UI 
   await publish(client, graph);
   const panel = await openGraph(client, graph.graphId);
   await action(client, panel, { type: 'selectNode', nodeId: 'evidence' });
+  await action(client, panel, { type: 'setLayout', layout: 'tree', direction: 'vertical' });
   const camera = { x: -73, y: 104, zoom: 1.45 };
   await action(client, panel, { type: 'setCamera', camera });
   await action(client, panel, { type: 'setQuery', query: '측정 결과' });
   assert.equal(panel.snapshot.state.selectedNodeId, 'evidence');
   assert.deepEqual(panel.snapshot.state.views.large.camera, camera);
   assert.equal(panel.snapshot.state.views.large.query, '측정 결과');
+  assert.equal(panel.snapshot.state.views.large.layout, 'tree');
+  assert.equal(panel.snapshot.state.views.large.direction, 'vertical');
   const known = { knownGraphId: graph.graphId, knownRevision: panel.snapshot.revision, knownStateRevision: panel.snapshot.stateRevision };
   const unchanged = await sync(client, panel, known);
   success(unchanged);
@@ -162,6 +165,27 @@ test('acknowledged selection, camera and search survive server reconnect and UI 
   const reopened = await openGraph(restarted, graph.graphId);
   assert.notEqual(reopened.sessionId, panel.sessionId);
   assert.deepEqual(reopened.snapshot, panel.snapshot);
+});
+
+test('records saved before layout controls restore their graph state with default layouts', async t => {
+  const f = await fixture(t), client = await f.start(), graph = researchGraph();
+  await publish(client, graph);
+  const panel = await openGraph(client, graph.graphId);
+  await action(client, panel, {type: 'selectNode', nodeId: 'evidence'});
+  const camera = {x: 30, y: 80, zoom: .9};
+  await action(client, panel, {type: 'setCamera', camera});
+  await client.stop();
+  const key = createHash('sha256').update(JSON.stringify([CHAT_A.hostId, CHAT_A.threadId])).digest('hex');
+  const file = path.join(f.dataDir, 'chats', `${key}.json`), record = JSON.parse(await readFile(file, 'utf8'));
+  for (const view of Object.values(record.graphs[0].state.views)) {delete view.layout; delete view.direction;}
+  await writeFile(file, JSON.stringify(record), 'utf8');
+  const restarted = await f.start(), saved = success(await restarted.call('graph_read', {graphId: graph.graphId})).snapshot;
+  assert.deepEqual(saved.graph, graph);
+  assert.equal(saved.state.selectedNodeId, 'evidence');
+  assert.deepEqual(saved.state.views.large.camera, camera);
+  assert.equal(saved.state.views.large.layout, 'layered');
+  assert.equal(saved.state.views.large.direction, 'horizontal');
+  assert.equal(saved.state.views.summary.direction, 'vertical');
 });
 
 test('backup recovery restores saved graph state without reviving a prior UI token', async t => {

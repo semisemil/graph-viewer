@@ -5,6 +5,7 @@ import {appendFile, mkdir, open, readFile, realpath, stat, writeFile} from 'node
 import path from 'node:path';
 import GraphModel from './model.js';
 import {GraphStore, chatRef, sameChat, failure} from './store.mjs';
+const {version} = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 
 async function mermaidGraph(text, options) {
   const parser = await import('./mermaid.mjs');
@@ -74,7 +75,7 @@ async function viewer() {
     readFile(new URL('../web/mcp.html', import.meta.url), 'utf8'),
   ]);
   const scripts = [model, renderer].map(source => '<script>' + source.replace(/<\/script/gi, '<\\/script') + '</script>').join('\n');
-  return html.replace('<!-- GRAPH_ENGINE -->', () => scripts);
+  return html.replace('<!-- GRAPH_ENGINE -->', () => scripts).replaceAll('__GRAPH_VIEWER_VERSION__', version);
 }
 const readOnly = {readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false};
 const projectField = {projectPath: z.string().min(1).optional()};
@@ -92,7 +93,7 @@ transport.send = async message => {
 };
 const serving = serveStdio(factory => {
   const protocolVersion = () => factory.era === 'modern' ? '2026-07-28' : negotiatedVersion;
-  const server = new McpServer({name: 'graph-viewer', version: '1.2.2'}, {
+  const server = new McpServer({name: 'graph-viewer', version}, {
     capabilities: {extensions: {'io.modelcontextprotocol/ui': {}}},
     instructions: 'Pass the current project absolute path as projectPath. Use graph_publish with JSON or Mermaid, then open_graph. Updates do not open another tab. Chat identity comes from the host.',
   });
@@ -154,7 +155,7 @@ const serving = serveStdio(factory => {
     inputSchema: z.object({
       op: z.enum(['sync', 'action', 'ack']), scope: z.object({hostId: z.string(), threadId: z.string(), ...projectField}).strict(), sessionId: z.string().min(1),
       graphId: z.string().optional(), revision: z.number().int().nonnegative().optional(), expectedStateRevision: z.number().int().nonnegative().optional(),
-      action: z.object({type: z.string(), nodeId: z.string().nullable().optional(), camera: z.object({x: z.number(), y: z.number(), zoom: z.number()}).strict().optional(), query: z.string().optional()}).strict().optional(),
+      action: z.object({type: z.string(), nodeId: z.string().nullable().optional(), camera: z.object({x: z.number(), y: z.number(), zoom: z.number()}).strict().optional(), query: z.string().optional(), layout: z.enum(GraphModel.layoutModes).optional(), direction: z.enum(GraphModel.layoutDirections).optional()}).strict().optional(),
       knownGraphId: z.string().optional(), knownRevision: z.number().int().nonnegative().optional(), knownStateRevision: z.number().int().nonnegative().optional(),
       stateRevision: z.number().int().nonnegative().optional(), displayMode: z.string().optional(),
     }).strict(),

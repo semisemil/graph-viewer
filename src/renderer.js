@@ -36,7 +36,10 @@
       input{width:100%;min-width:0;height:100%;padding:0 34px 0 8px;background:transparent;border:0;outline:none}input::placeholder{color:var(--muted)}
       .search-clear{position:absolute;right:4px;top:4px;width:26px;min-width:26px;height:26px;padding:4px;border-radius:6px;color:var(--muted)}.search-clear:hover{color:var(--text)}
       .theme-field{position:relative;flex:none;width:112px;margin-left:auto}.theme-field>.icon{position:absolute;right:9px;top:10px;color:var(--muted)}
+      .layout-controls{display:flex;align-items:center;gap:12px;flex:none}.layout-field{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;white-space:nowrap}
+      .select-wrap{position:relative;display:block;width:112px;color:var(--text)}.direction-field .select-wrap{width:80px}.select-wrap>.icon{position:absolute;right:9px;top:calc(50% - 8px);color:var(--muted)}
       select{appearance:none;width:100%;height:36px;padding:0 30px 0 11px;background:var(--control);border:1px solid var(--control-border);border-radius:9px;cursor:pointer}select:hover{background:var(--control-hover)}
+      select:disabled{opacity:.5;cursor:default;background:var(--control)}
       .legend{display:flex;gap:12px;padding:9px 14px;color:var(--muted);font-size:11px;flex-wrap:wrap;max-height:80px;overflow:auto}
       .legend span{overflow-wrap:anywhere}.legend span::before{content:'';display:inline-block;width:7px;height:7px;margin-right:5px;border-radius:2px;background:var(--c)}
       .canvas{position:relative;flex:1;min-height:80px;background-color:var(--canvas);background-image:radial-gradient(var(--grid) .7px,transparent .7px);background-size:18px 18px}
@@ -70,9 +73,11 @@
       .motion-off .edge-flow{display:none!important;animation:none!important}
       @media(prefers-reduced-motion:reduce){.edge-flow.related{display:none;animation:none}.node,.node>rect:first-child,.edge,button,.search-field{transition:none}.node-tooltip{animation:none}}
       @media(max-width:380px){header{padding:8px}.header-controls{gap:6px}.theme-field{width:100px}}
+      @media(max-width:680px){.header-controls{flex-wrap:wrap}.layout-controls{order:3;flex-basis:100%}}
       ${compact ? 'header{padding:8px}.header-controls{gap:6px}.search-field,select{height:32px;font-size:12px}.search-clear{top:2px;right:2px}.theme-field{width:100px}.theme-field>.icon{top:8px}.legend{padding:6px 10px;gap:8px;max-height:56px}.tooltip-scroll{padding:13px 14px}.tooltip-title{font-size:15px}.tools{bottom:7px;left:7px}.tools button{width:28px;height:28px;min-width:28px}.zoom{height:28px;min-width:42px}.minimap{width:60px;height:116px;right:7px;bottom:7px;opacity:.3;pointer-events:all;transition:opacity 160ms ease}.minimap:hover,.minimap:focus-visible{opacity:1}.minimap:focus-visible{outline:2px solid var(--focus);outline-offset:2px}@media(prefers-reduced-motion:reduce){.minimap{transition:none}}' : ''}
     </style><div class="shell"><header><div class="header-controls">
       <div class="search-field">${icon('<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/>')}<input aria-label="노드 검색" placeholder="노드 검색"><button class="search-clear" type="button" aria-label="검색어 지우기" title="검색어 지우기" hidden>${icon('<path d="m8 8 8 8m0-8-8 8"/>')}</button></div>
+      <div class="layout-controls"><label class="layout-field">배치<span class="select-wrap"><select aria-label="배치 방식"><option value="layered">계층형</option><option value="tree">트리형</option><option value="radial">방사형</option><option value="network">네트워크형</option></select>${icon('<path d="m8 10 4 4 4-4"/>')}</span></label><label class="layout-field direction-field">방향<span class="select-wrap"><select aria-label="배치 방향"><option value="horizontal">가로</option><option value="vertical">세로</option></select>${icon('<path d="m8 10 4 4 4-4"/>')}</span></label></div>
       <div class="theme-field"><select aria-label="화면 테마"><option value="auto">자동 테마</option><option value="light">라이트</option><option value="dark">다크</option></select>${icon('<path d="m8 10 4 4 4-4"/>')}</div>
     </div></header><div class="legend" aria-label="노드 유형"></div><div class="canvas"><svg class="graph" role="group"><defs></defs><g class="world"></g></svg><div class="empty" hidden>표시할 노드가 없습니다.</div>
       <div class="tools" role="toolbar" aria-label="그래프 보기"><button type="button" aria-label="확대" title="확대">${icon('<path d="M12 5v14M5 12h14"/>')}</button><button type="button" aria-label="축소" title="축소">${icon('<path d="M5 12h14"/>')}</button><button type="button" aria-label="전체 맞춤" title="전체 맞춤">${icon('<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>')}</button><button class="zoom" type="button" aria-label="100%로 보기" title="100%로 보기"></button></div>
@@ -87,13 +92,16 @@
     const tooltipScroll = shadow.querySelector('.tooltip-scroll');
     const search = shadow.querySelector('input');
     const clearSearch = shadow.querySelector('.search-clear');
-    const themeSelect = shadow.querySelector('select');
+    const themeSelect = shadow.querySelector('[aria-label="화면 테마"]');
+    const layoutSelect = shadow.querySelector('[aria-label="배치 방식"]');
+    const directionSelect = shadow.querySelector('[aria-label="배치 방향"]');
     const measure = document.createElement('canvas').getContext('2d');
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
     const colorScheme = window.matchMedia('(prefers-color-scheme: dark)');
     let hostTheme = options.hostTheme, themePreference = 'auto';
     try { const saved = window.localStorage.getItem('graph-viewer.theme'); if (['auto', 'light', 'dark'].includes(saved)) themePreference = saved; } catch {}
     let graph, layout, nodeMap, viewMap, viewport, graphSignature, colors;
+    let layoutType = 'layered', direction = compact ? 'vertical' : 'horizontal';
     let selectedNodeId = null, camera = null, query = '';
     let hovered = null, focused = null, drag = null;
     let tooltipAnchor = null, tooltipHovered = false, showTimer = 0, hideTimer = 0;
@@ -408,8 +416,8 @@
       }
       return {d, start, end, label: route.label};
     }
-    function renderGraph() {
-      layout = model.layoutGraph(graph, compact);
+    function renderGraph(fitAll = false) {
+      layout = model.layoutGraph(graph, compact, {layout: layoutType, direction});
       nodeMap = new Map(graph.nodes.map(node => [node.id, node]));
       viewMap = new Map(layout.nodes.map(node => [node.id, node]));
       svg.setAttribute('aria-label', graph.title);
@@ -474,7 +482,7 @@
       viewport.append(element(document, 'title', {}, '현재 화면에 보이는 영역'));
       minimap.append(viewport);
       updateHighlights();
-      if (camera) transform(); else fit(false, true);
+      if (camera && !fitAll) transform(); else fit(false, !fitAll);
     }
 
     function validCamera(value) {
@@ -487,14 +495,21 @@
       const changedGraph = graphSignature !== signature;
       if (!changedGraph && !state) return;
       const previousSelected = selectedNodeId, previousQuery = query;
+      const previousLayout = layoutType, previousDirection = direction;
       const changedId = graph?.graphId !== next.graphId;
-      if (changedGraph) {
+      if (changedId) { selectedNodeId = null; camera = null; query = ''; layoutType = 'layered'; direction = compact ? 'vertical' : 'horizontal'; }
+      if (state) {
+        if (model.layoutModes.includes(state.layout)) layoutType = state.layout;
+        if (model.layoutDirections.includes(state.direction)) direction = state.direction;
+      }
+      const changedLayout = previousLayout !== layoutType || previousDirection !== direction;
+      if (changedGraph || changedLayout) {
         stopAnimation();
         hideTooltip();
         drag = null;
         interaction(false);
       }
-      if (changedId) { selectedNodeId = null; camera = null; query = ''; }
+      if (changedLayout) camera = null;
       graph = next;
       if (state) {
         if (Object.prototype.hasOwnProperty.call(state, 'selectedNodeId')) selectedNodeId = typeof state.selectedNodeId === 'string' ? state.selectedNodeId : null;
@@ -507,7 +522,10 @@
       if (!graph.nodes.some(node => node.id === selectedNodeId)) selectedNodeId = null;
       search.value = query;
       clearSearch.hidden = !query;
-      if (changedGraph) {
+      layoutSelect.value = layoutType; directionSelect.value = direction;
+      directionSelect.disabled = layoutType === 'radial' || layoutType === 'network';
+      directionSelect.title = directionSelect.disabled ? '계층형과 트리형에서 방향을 선택합니다.' : '';
+      if (changedGraph || changedLayout) {
         hovered = null; focused = null;
         graphSignature = signature;
         renderGraph();
@@ -556,6 +574,19 @@
     shadow.querySelector('[aria-label="축소"]').addEventListener('click', () => zoom(.8));
     shadow.querySelector('[aria-label="전체 맞춤"]').addEventListener('click', () => fit(true));
     shadow.querySelector('.zoom').addEventListener('click', () => { if (camera) zoom(1 / (target || camera).zoom); });
+    function changeLayout() {
+      stopAnimation(); hideTooltip(); hovered = focused = null; drag = null;
+      interaction(true);
+      layoutType = layoutSelect.value; direction = directionSelect.value;
+      directionSelect.disabled = layoutType === 'radial' || layoutType === 'network';
+      directionSelect.title = directionSelect.disabled ? '계층형과 트리형에서 방향을 선택합니다.' : '';
+      camera = null;
+      renderGraph(true);
+      emit({type: 'setLayout', layout: layoutType, direction, ...(camera ? {camera: cameraCopy()} : {})});
+      interaction(false);
+    }
+    layoutSelect.addEventListener('change', changeLayout);
+    directionSelect.addEventListener('change', changeLayout);
     function updateQuery() {
       query = search.value;
       clearSearch.hidden = !query;
@@ -588,7 +619,7 @@
     return {
       update,
       setHostTheme,
-      getState() { return {selectedNodeId, camera: cameraCopy(), query}; },
+      getState() { return {selectedNodeId, camera: cameraCopy(), query, layout: layoutType, direction}; },
       destroy() {
         if (destroyed) return;
         destroyed = true;

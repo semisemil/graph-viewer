@@ -19,6 +19,32 @@ async function storedUntil(client, predicate) {
   assert.fail(`UI state was not saved: ${JSON.stringify(snapshot)}`);
 }
 
+async function bypassesCards(locator) {
+  const crossed = await locator.locator('.world .edge').evaluateAll(paths => {
+    const shadow = paths[0].getRootNode();
+    const cards = [...shadow.querySelectorAll('.node')].map(node => {
+      const {e: x, f: y} = node.transform.baseVal[0].matrix, rect = node.querySelector('rect');
+      return {id: node.dataset.id, x, y, width: rect.width.baseVal.value, height: rect.height.baseVal.value};
+    });
+    const collisions = [];
+    for (const path of paths) {
+      const edge = path.parentElement.dataset, length = path.getTotalLength();
+      for (const card of cards) {
+        if (card.id === edge.from || card.id === edge.to) continue;
+        for (let t = 0; t <= length; t += 3) {
+          const point = path.getPointAtLength(t);
+          if (point.x > card.x + 3 && point.x < card.x + card.width - 3 && point.y > card.y + 3 && point.y < card.y + card.height - 3) {
+            collisions.push({edge: edge.id, card: card.id});
+            break;
+          }
+        }
+      }
+    }
+    return collisions;
+  });
+  assert.deepEqual(crossed, []);
+}
+
 for (const initialOrder of ['before', 'after']) {
   test(`MCP UI accepts the initial tool result ${initialOrder} bridge initialization and updates its existing graph`, { skip: !packagePath, timeout: 30000 }, async t => {
     const f = await browserFixture(t, { initialOrder });
@@ -178,31 +204,6 @@ test('long connections bypass cards in both orientations and a long graph opens 
   await f.frame.getByRole('button', {name: '100%로 보기'}).click();
   await storedUntil(f.client, snapshot => Math.abs((snapshot.state.views.large.camera?.zoom || 0) - 1) < 1e-8);
 
-  async function bypassesCards(locator) {
-    const crossed = await locator.locator('.world .edge').evaluateAll(paths => {
-      const shadow = paths[0].getRootNode();
-      const cards = [...shadow.querySelectorAll('.node')].map(node => {
-        const {e: x, f: y} = node.transform.baseVal[0].matrix, rect = node.querySelector('rect');
-        return {id: node.dataset.id, x, y, width: rect.width.baseVal.value, height: rect.height.baseVal.value};
-      });
-      const collisions = [];
-      for (const path of paths) {
-        const edge = path.parentElement.dataset, length = path.getTotalLength();
-        for (const card of cards) {
-          if (card.id === edge.from || card.id === edge.to) continue;
-          for (let t = 0; t <= length; t += 3) {
-            const point = path.getPointAtLength(t);
-            if (point.x > card.x + 3 && point.x < card.x + card.width - 3 && point.y > card.y + 3 && point.y < card.y + card.height - 3) {
-              collisions.push({edge: edge.id, card: card.id});
-              break;
-            }
-          }
-        }
-      }
-      return collisions;
-    });
-    assert.deepEqual(crossed, []);
-  }
   await bypassesCards(f.frame.locator('.graph-viewer'));
   await f.frame.locator('body').evaluate((body, graph) => {
     const container = document.createElement('main');
@@ -218,6 +219,57 @@ test('long connections bypass cards in both orientations and a long graph opens 
   await bypassesCards(f.frame.locator('.graph-viewer').first());
   await f.frame.locator('body').evaluate((body, graph) => compactView.update(graph), cyclic);
   await bypassesCards(f.frame.locator('#compact-check'));
+  assert.deepEqual(f.errors, []);
+});
+
+test('layout controls preserve multi-root graphs, selection and search and restore the saved layout after reopening', {skip: !packagePath, timeout: 60000}, async t => {
+  const nodes = ['root-a', 'root-b', 'a', 'b', 'c', 'd', 'e', 'done', 'detached'].map(id => ({id, type: '작업', label: id, details: '검사할 연결과 근거'}));
+  const links = [['root-a', 'a'], ['root-a', 'b'], ['root-b', 'e'], ['a', 'c'], ['b', 'd'], ['c', 'done'], ['d', 'done'], ['e', 'done'], ['done', 'b']];
+  const graph = {schemaVersion: 1, graphId: 'layout-controls', title: '여러 루트와 순환 연결', nodes, edges: links.map(([source, target], i) => ({id: `edge${i}`, source, target}))};
+  const f = await browserFixture(t, {graph});
+  await f.frame.locator('.node[data-id="root-a"]').click();
+  await storedUntil(f.client, item => item.state.selectedNodeId === 'root-a');
+  await f.frame.getByRole('textbox', {name: '노드 검색'}).fill('검사');
+  await storedUntil(f.client, item => item.state.views.large.query === '검사');
+  const direction = f.frame.getByRole('combobox', {name: '배치 방향'});
+  const layout = f.frame.getByRole('combobox', {name: '배치 방식'});
+  const positions = () => f.frame.locator('.node').evaluateAll(nodes => nodes.map(node => [node.dataset.id, node.transform.baseVal[0].matrix.e, node.transform.baseVal[0].matrix.f]));
+  const horizontal = await positions();
+  await direction.selectOption('vertical');
+  await storedUntil(f.client, item => item.state.views.large.direction === 'vertical');
+  const vertical = await positions();
+  const root = vertical.find(node => node[0] === 'root-a'), child = vertical.find(node => node[0] === 'a');
+  assert.ok(child[2] > root[2]);
+  assert.notDeepEqual(vertical, horizontal);
+  const arrangements = new Set();
+  for (const mode of ['layered', 'tree', 'radial', 'network']) {
+    await layout.selectOption(mode);
+    const saved = await storedUntil(f.client, item => item.state.views.large.layout === mode);
+    assert.equal(saved.state.selectedNodeId, 'root-a');
+    assert.equal(saved.state.views.large.query, '검사');
+    assert.equal(await f.frame.locator('.node').count(), nodes.length);
+    assert.equal(await f.frame.locator('.connection').count(), graph.edges.length);
+    assert.equal(await direction.isDisabled(), mode === 'radial' || mode === 'network');
+    const overlap = await f.frame.locator('.node').evaluateAll(nodes => {
+      const cards = nodes.map(node => {const matrix = node.transform.baseVal[0].matrix, rect = node.querySelector('rect'); return {x: matrix.e, y: matrix.f, w: rect.width.baseVal.value, h: rect.height.baseVal.value};});
+      return cards.some((a, i) => cards.slice(i + 1).some(b => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y));
+    });
+    assert.equal(overlap, false);
+    await bypassesCards(f.frame.locator('.graph-viewer'));
+    arrangements.add(JSON.stringify(await positions()));
+  }
+  assert.equal(arrangements.size, 4);
+  const before = await positions(), reopened = await f.client.call('open_graph', {graphId: graph.graphId});
+  success(reopened);
+  await f.page.evaluate(({html, opened}) => {
+    const frame = document.querySelector('iframe');
+    frame.addEventListener('load', () => window.deliverToolResult(opened), {once: true});
+    frame.srcdoc = html;
+  }, {html: await f.page.locator('iframe').getAttribute('srcdoc'), opened: reopened});
+  await f.frame.getByRole('combobox', {name: '배치 방식'}).waitFor();
+  await f.page.waitForFunction(() => document.querySelector('iframe').contentDocument?.querySelector('.graph-viewer')?.shadowRoot.querySelector('[aria-label="배치 방식"]').value === 'network');
+  assert.deepEqual(await positions(), before);
+  assert.equal(await f.frame.getByRole('textbox', {name: '노드 검색'}).inputValue(), '검사');
   assert.deepEqual(f.errors, []);
 });
 

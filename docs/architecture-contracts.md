@@ -12,7 +12,7 @@ MCP 실행 구조는 [아키텍처](architecture.md)를 참고한다.
 const view = GraphPanel.mount(container, {
   graph,
   compact: true,
-  state: {selectedNodeId: null, camera: null, query: ''},
+  state: {selectedNodeId: null, camera: null, query: '', layout: 'layered', direction: 'vertical'},
   onAction(action) {},
   onInteraction(active) {}
 });
@@ -29,6 +29,11 @@ zoom 1은 100%다.
 전체를 표시하기에 화면이 작으면 선택한 노드 또는 시작 노드 주변을 보여준다.
 ‘전체 맞춤’은 배율 제한 없이 그래프 전체를 표시하고, 배율 숫자를 누르면 현재 중심에서 100%로 전환한다.
 같은 그래프의 update에서 state를 생략하면 선택, 카메라와 검색을 유지한다.
+layout은 layered, tree, radial 또는 network다.
+direction은 horizontal 또는 vertical이며, 계층형과 트리형에 적용한다.
+compact는 카드 크기를 정하고, 명시한 direction과 별도로 동작한다.
+설정이 없으면 계층형을 사용하며, 기본 방향은 compact 화면에서 세로, 큰 화면에서 가로다.
+배치 변경은 선택과 검색을 유지하고 전체 구조에 맞춰 카메라를 조정한다.
 외부 갱신은 onAction을 발생시키지 않는다.
 destroy는 자신이 만든 요소, 감시자와 이벤트만 제거한다.
 제거한 그래프의 노드, 연결과 옵션 참조도 해제한다.
@@ -52,6 +57,7 @@ onThemeChange(theme)는 적용된 light 또는 dark 값을 전달한다.
 | selectNode | nodeId 또는 null | 그래프 공통 선택 |
 | setCamera | camera | 해당 뷰의 중심과 배율 |
 | setQuery | query | 해당 뷰의 검색어 |
+| setLayout | layout, direction, 선택적 camera | 해당 뷰의 배치와 카메라 |
 
 onInteraction은 카메라 조작 시작과 종료를 알린다.
 드래그 종료와 애니메이션 완료 때 완성된 카메라만 전달한다.
@@ -116,13 +122,14 @@ snapshot은 {graph,revision,state,stateRevision} 또는 null이다.
 {
   "selectedNodeId": null,
   "views": {
-    "summary": {"camera": null, "query": ""},
-    "large": {"camera": null, "query": ""}
+    "summary": {"camera": null, "query": "", "layout": "layered", "direction": "vertical"},
+    "large": {"camera": null, "query": "", "layout": "layered", "direction": "horizontal"}
   }
 }
 ```
 
 같은 채팅의 읽기와 변경은 하나의 큐에서 처리한다.
+이전 저장 자료에 배치 설정이 없으면 기본값을 적용한다.
 그래프 등록은 expectedRevision이 현재 revision과 같을 때만 진행하고 버전을 1 증가시킨다.
 선택과 뷰별 상태 변경은 필요한 필드만 수정하고 stateRevision을 증가시킨다.
 오래된 graph revision의 상태 쓰기는 거부한다.

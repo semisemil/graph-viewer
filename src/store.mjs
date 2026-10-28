@@ -17,7 +17,10 @@ export function chatRef(value) {
 }
 
 export const sameChat = (a, b) => a?.hostId === b?.hostId && a?.threadId === b?.threadId;
-const initialState = () => ({selectedNodeId: null, views: {summary: {camera: null, query: ''}, large: {camera: null, query: ''}}});
+const initialState = () => ({selectedNodeId: null, views: {
+  summary: {camera: null, query: '', layout: 'layered', direction: 'vertical'},
+  large: {camera: null, query: '', layout: 'layered', direction: 'horizontal'},
+}});
 
 function validCamera(value) {
   return value && ['x', 'y', 'zoom'].every(key => Number.isFinite(value[key])) && value.zoom > 0 && value.zoom <= 20;
@@ -35,6 +38,8 @@ function validateRecord(record, ref) {
     for (const view of ['summary', 'large']) {
       const part = state.views?.[view];
       if (!part || typeof part.query !== 'string' || part.query.length > 2000 || part.camera !== null && !validCamera(part.camera)) throw new Error('보기 상태가 잘못됐습니다.');
+      part.layout ??= 'layered'; part.direction ??= view === 'summary' ? 'vertical' : 'horizontal';
+      if (!GraphModel.layoutModes.includes(part.layout) || !GraphModel.layoutDirections.includes(part.direction)) throw new Error('배치 설정이 잘못됐습니다.');
     }
   }
   if (record.activeGraphId !== null && !ids.has(record.activeGraphId)) throw new Error('활성 그래프가 없습니다.');
@@ -202,6 +207,12 @@ export class GraphStore {
       } else if (action.type === 'setQuery') {
         if (typeof action.query !== 'string' || action.query.length > 2000) throw failure('invalid-query', '검색어는 최대 2000자입니다.');
         item.state.views[view].query = action.query;
+      } else if (action.type === 'setLayout') {
+        if (!GraphModel.layoutModes.includes(action.layout) || !GraphModel.layoutDirections.includes(action.direction)) throw failure('invalid-layout', '배치 방식과 방향을 확인하세요.');
+        if (action.camera !== undefined && !validCamera(action.camera)) throw failure('invalid-camera', '카메라 중심과 양수 배율이 필요합니다.');
+        const part = item.state.views[view];
+        part.layout = action.layout; part.direction = action.direction;
+        part.camera = action.camera ? {x: action.camera.x, y: action.camera.y, zoom: action.camera.zoom} : null;
       } else throw failure('invalid-action', '지원하지 않는 상태 명령입니다.');
       item.stateRevision++;
       return {write: true, value: {committed: true, snapshot: item}};
