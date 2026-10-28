@@ -44,6 +44,21 @@ function validateRecord(record, ref) {
   }
   if (record.activeGraphId !== null && !ids.has(record.activeGraphId)) throw new Error('활성 그래프가 없습니다.');
   if (record.nativeView && (typeof record.nativeView.sessionId !== 'string' || !record.nativeView.sessionId)) throw new Error('그래프 탭 세션이 잘못됐습니다.');
+  if (record.nativeViews === undefined) {
+    record.nativeViews = [];
+    if (record.nativeView && record.activeGraphId !== null) {
+      const view = {graphId: record.activeGraphId, sessionId: record.nativeView.sessionId};
+      if (record.nativeView.lastReport?.graphId === view.graphId) view.lastReport = record.nativeView.lastReport;
+      record.nativeViews.push(view);
+    }
+  }
+  delete record.nativeView;
+  if (!Array.isArray(record.nativeViews)) throw new Error('그래프 탭 연결 목록이 잘못됐습니다.');
+  const boundGraphs = new Set(), sessions = new Set();
+  for (const view of record.nativeViews) {
+    if (!view || !ids.has(view.graphId) || boundGraphs.has(view.graphId) || typeof view.sessionId !== 'string' || !view.sessionId || sessions.has(view.sessionId)) throw new Error('그래프 탭 연결이 잘못됐습니다.');
+    boundGraphs.add(view.graphId); sessions.add(view.sessionId);
+  }
   return record;
 }
 
@@ -80,11 +95,11 @@ export class GraphStore {
       try {
         const text = await readFile(candidate, 'utf8');
         const record = validateRecord(JSON.parse(text), ref);
-        if (candidate !== file) delete record.nativeView;
+        if (candidate !== file) record.nativeViews = [];
         return {file, record, original: candidate === file ? text : null};
       } catch (error) {errors.push(error);}
     }
-    if (errors.every(e => e.code === 'ENOENT')) return {file, record: {schemaVersion: 1, chatRef: ref, activeGraphId: null, graphs: []}, original: null};
+    if (errors.every(e => e.code === 'ENOENT')) return {file, record: {schemaVersion: 1, chatRef: ref, activeGraphId: null, graphs: [], nativeViews: []}, original: null};
     throw failure('corrupt-store', '채팅 저장 파일과 백업을 읽지 못했습니다. 기존 파일을 보존합니다.', 500);
   }
   async #lock(key) {
@@ -127,7 +142,7 @@ export class GraphStore {
       chatRef: ref, activeGraphId: record.activeGraphId,
       graphs: record.graphs.map(item => ({graphId: item.graph.graphId, title: item.graph.title, revision: item.revision})),
       snapshot: record.graphs.find(item => item.graph.graphId === (graphId || record.activeGraphId)) || null,
-      lastReport: record.nativeView?.lastReport || null,
+      lastReport: record.nativeViews.find(view => view.graphId === (graphId || record.activeGraphId))?.lastReport || null,
     }}));
   }
   publish(ref, graph, expectedRevision) {
@@ -158,29 +173,35 @@ export class GraphStore {
     return this.#transaction(ref, record => {
       const item = record.graphs.find(item => item.graph.graphId === (graphId || record.activeGraphId));
       if (!item) throw failure('graph-not-found', '먼저 그래프를 등록하세요.', 404);
+      let view = record.nativeViews.find(view => view.graphId === item.graph.graphId);
+      const write = !view || record.activeGraphId !== item.graph.graphId;
+      if (!view) {
+        view = {graphId: item.graph.graphId, sessionId: randomUUID()};
+        record.nativeViews.push(view);
+      }
       record.activeGraphId = item.graph.graphId;
-      record.nativeView = {sessionId: randomUUID()};
-      return {write: true, value: {sessionId: record.nativeView.sessionId, snapshot: item}};
+      return {write, value: {sessionId: view.sessionId, snapshot: item}};
     });
   }
-  #nativeItem(record, sessionId) {
-    if (!sessionId || record.nativeView?.sessionId !== sessionId) throw failure('stale-session', '이 그래프 탭의 연결이 만료됐습니다. 그래프를 다시 여세요.', 409);
-    const item = record.graphs.find(item => item.graph.graphId === record.activeGraphId);
-    if (!item) throw failure('graph-not-found', '활성 그래프가 없습니다.', 404);
-    return item;
+  #nativeBinding(record, sessionId) {
+    const view = record.nativeViews.find(view => view.sessionId === sessionId);
+    if (!view) throw failure('stale-session', '이 그래프 탭의 연결이 만료됐습니다. 그래프를 다시 여세요.', 409);
+    const item = record.graphs.find(item => item.graph.graphId === view.graphId);
+    if (!item) throw failure('graph-not-found', '연결된 그래프가 없습니다.', 404);
+    return {view, item};
   }
   syncNative(ref, request) {
     return this.#transaction(ref, record => {
-      const item = this.#nativeItem(record, request.sessionId);
+      const {item} = this.#nativeBinding(record, request.sessionId);
       const unchanged = item.graph.graphId === request.knownGraphId && item.revision === request.knownRevision && item.stateRevision === request.knownStateRevision;
       return {value: {unchanged, ...(unchanged ? {} : {snapshot: item})}};
     });
   }
   ackNative(ref, request) {
     return this.#transaction(ref, record => {
-      const item = this.#nativeItem(record, request.sessionId);
+      const {view, item} = this.#nativeBinding(record, request.sessionId);
       if (request.graphId !== item.graph.graphId || request.revision !== item.revision || !Number.isSafeInteger(request.stateRevision) || request.stateRevision < 0 || request.stateRevision > item.stateRevision || request.displayMode !== 'fullscreen') throw failure('invalid-report', '현재 그래프와 fullscreen 표시 결과를 확인하세요.');
-      record.nativeView.lastReport = {graphId: request.graphId, revision: request.revision, stateRevision: request.stateRevision, displayMode: request.displayMode, at: new Date().toISOString()};
+      view.lastReport = {graphId: request.graphId, revision: request.revision, stateRevision: request.stateRevision, displayMode: request.displayMode, at: new Date().toISOString()};
       return {write: true, value: {committed: true}};
     });
   }
@@ -188,8 +209,8 @@ export class GraphStore {
     return this.#transaction(ref, record => {
       checkSession();
       if (Object.hasOwn(request, 'nativeSessionId')) {
-        const active = this.#nativeItem(record, request.nativeSessionId);
-        if (active.graph.graphId !== request.graphId) throw failure('revision-conflict', '활성 그래프가 바뀌었습니다.', 409);
+        const {item} = this.#nativeBinding(record, request.nativeSessionId);
+        if (item.graph.graphId !== request.graphId) throw failure('revision-conflict', '이 뷰어에 연결된 그래프와 다릅니다.', 409);
       }
       const item = record.graphs.find(item => item.graph.graphId === request.graphId);
       if (!item) throw failure('graph-not-found', '그래프가 없습니다.', 404);

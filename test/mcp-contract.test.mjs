@@ -92,22 +92,21 @@ test('two MCP processes accept one simultaneous revision and retain distinct gra
   assert.deepEqual((await openGraph(b, distinct[1].graphId)).snapshot.graph, distinct[1]);
 });
 
-test('a new open revokes old UI authority across processes and stale writes leave accepted state intact', async t => {
+test('reopening a graph across processes keeps prior viewers connected and rejects stale state writes', async t => {
   const f = await fixture(t), a = await f.start(), b = await f.start();
   const graph = researchGraph();
   await publish(a, graph);
   const oldPanel = await openGraph(a, graph.graphId);
   await action(a, oldPanel, { type: 'selectNode', nodeId: 'question' });
   const current = await openGraph(b, graph.graphId);
-  assert.notEqual(current.sessionId, oldPanel.sessionId);
   await action(b, current, { type: 'selectNode', nodeId: 'evidence' });
-  rejected(await sync(a, oldPanel), 'stale-session');
+  assert.deepEqual((await sync(a, oldPanel))._meta.graphPanel.snapshot, current.snapshot);
   const delayed = await a.call('graph_view', {
     op: 'action', scope: CHAT_A, sessionId: oldPanel.sessionId,
     graphId: graph.graphId, revision: 1, expectedStateRevision: oldPanel.snapshot.stateRevision,
     action: { type: 'selectNode', nodeId: 'question' },
   });
-  rejected(delayed, 'stale-session');
+  rejected(delayed, 'state-conflict');
   const staleState = await b.call('graph_view', {
     op: 'action', scope: CHAT_A, sessionId: current.sessionId,
     graphId: graph.graphId, revision: 1, expectedStateRevision: current.snapshot.stateRevision - 1,
@@ -125,6 +124,47 @@ test('a new open revokes old UI authority across processes and stale writes leav
   const latest = (await sync(b, current))._meta.graphPanel.snapshot;
   assert.equal(latest.graph.title, '개정 문서');
   assert.deepEqual(latest.state, current.snapshot.state);
+});
+
+test('viewers stay bound to different graphs through opens, publishes and a server reconnect', async t => {
+  const f = await fixture(t), a = await f.start(), b = await f.start();
+  const first = researchGraph('구조'), second = {...researchGraph('조사'), graphId: 'investigation'};
+  await publish(a, first);
+  const panelA = await openGraph(a, first.graphId);
+  await action(a, panelA, {type: 'setLayout', layout: 'tree', direction: 'vertical'});
+  await action(a, panelA, {type: 'selectNode', nodeId: 'question'});
+  await publish(b, second);
+  const panelB = await openGraph(b, second.graphId);
+  await action(b, panelB, {type: 'setQuery', query: '실험'});
+  await action(b, panelB, {type: 'selectNode', nodeId: 'evidence'});
+  for (const panel of [panelA, panelB]) {
+    const response = await sync(a, panel);
+    success(response);
+    assert.deepEqual(response._meta.graphPanel.snapshot, panel.snapshot);
+    success(await a.call('graph_view', {
+      op: 'ack', scope: panel.scope, sessionId: panel.sessionId, graphId: panel.snapshot.graph.graphId,
+      revision: panel.snapshot.revision, stateRevision: panel.snapshot.stateRevision, displayMode: 'fullscreen',
+    }));
+  }
+  assert.equal(success(await a.call('graph_status', {graphId: first.graphId})).lastReport.graphId, first.graphId);
+  assert.equal(success(await a.call('graph_status', {graphId: second.graphId})).lastReport.graphId, second.graphId);
+  const wrongGraph = await a.call('graph_view', {
+    op: 'action', scope: panelA.scope, sessionId: panelA.sessionId, graphId: second.graphId,
+    revision: panelB.snapshot.revision, expectedStateRevision: panelB.snapshot.stateRevision,
+    action: {type: 'setQuery', query: '다른 그래프에 쓰면 안 됨'},
+  });
+  rejected(wrongGraph, 'revision-conflict');
+  await publish(a, {...first, title: '구조 개정'}, 1);
+  assert.deepEqual((await sync(b, panelB))._meta.graphPanel.snapshot, panelB.snapshot);
+  panelA.snapshot = (await sync(a, panelA))._meta.graphPanel.snapshot;
+  assert.equal(panelA.snapshot.revision, 2);
+  assert.equal(panelA.snapshot.state.selectedNodeId, 'question');
+  await Promise.all([a.stop(), b.stop()]);
+  const restarted = await f.start();
+  for (const panel of [panelA, panelB]) {
+    assert.deepEqual((await sync(restarted, panel))._meta.graphPanel.snapshot, panel.snapshot);
+    await action(restarted, panel, {type: 'setCamera', camera: {x: 50, y: 70, zoom: 1.2}});
+  }
 });
 
 test('acknowledged selection, camera and search survive server reconnect and UI reopening', async t => {
@@ -163,11 +203,11 @@ test('acknowledged selection, camera and search survive server reconnect and UI 
   success(recovered);
   assert.deepEqual(recovered._meta.graphPanel.snapshot, panel.snapshot);
   const reopened = await openGraph(restarted, graph.graphId);
-  assert.notEqual(reopened.sessionId, panel.sessionId);
   assert.deepEqual(reopened.snapshot, panel.snapshot);
+  assert.deepEqual((await sync(restarted, panel))._meta.graphPanel.snapshot, panel.snapshot);
 });
 
-test('records saved before layout controls restore their graph state with default layouts', async t => {
+test('legacy single-view records restore their connection and graph state with default layouts', async t => {
   const f = await fixture(t), client = await f.start(), graph = researchGraph();
   await publish(client, graph);
   const panel = await openGraph(client, graph.graphId);
@@ -177,6 +217,7 @@ test('records saved before layout controls restore their graph state with defaul
   await client.stop();
   const key = createHash('sha256').update(JSON.stringify([CHAT_A.hostId, CHAT_A.threadId])).digest('hex');
   const file = path.join(f.dataDir, 'chats', `${key}.json`), record = JSON.parse(await readFile(file, 'utf8'));
+  record.nativeView = {sessionId: panel.sessionId}; delete record.nativeViews;
   for (const view of Object.values(record.graphs[0].state.views)) {delete view.layout; delete view.direction;}
   await writeFile(file, JSON.stringify(record), 'utf8');
   const restarted = await f.start(), saved = success(await restarted.call('graph_read', {graphId: graph.graphId})).snapshot;
@@ -186,6 +227,11 @@ test('records saved before layout controls restore their graph state with defaul
   assert.equal(saved.state.views.large.layout, 'layered');
   assert.equal(saved.state.views.large.direction, 'horizontal');
   assert.equal(saved.state.views.summary.direction, 'vertical');
+  assert.deepEqual((await sync(restarted, panel))._meta.graphPanel.snapshot, saved);
+  const another = {...researchGraph('새 그래프'), graphId: 'another'};
+  await publish(restarted, another);
+  await openGraph(restarted, another.graphId);
+  assert.deepEqual((await sync(restarted, panel))._meta.graphPanel.snapshot, saved);
 });
 
 test('backup recovery restores saved graph state without reviving a prior UI token', async t => {

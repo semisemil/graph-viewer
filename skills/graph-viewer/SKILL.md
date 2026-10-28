@@ -26,6 +26,8 @@ description: Create and update interactive graphs from Mermaid flowcharts or JSO
    버전 충돌이면 최신 문서를 읽고 변경을 합친다.
 4. 처음 표시하거나 닫은 그래프를 다시 열 때 `open_graph({projectPath,graphId})`를 호출한다.
    열린 그래프를 갱신할 때는 publish만 호출한다.
+   다른 그래프를 함께 표시하려면 다른 graphId로 저장하고 각각 open_graph를 호출한다.
+   기존 뷰어는 각자의 그래프에 계속 연결되며, 같은 그래프를 여러 번 열면 선택과 보기 상태를 공유한다.
 
 채팅은 호스트가 결정한다.
 채팅 ID를 도구 인자로 복사하거나 활성 창에서 추정하지 않는다.
@@ -33,7 +35,7 @@ description: Create and update interactive graphs from Mermaid flowcharts or JSO
 ## 결과 확인
 
 committed:true는 저장 완료, requested:true는 탭 열기 요청이다.
-graph_status.lastReport는 UI가 마지막으로 적용했다고 보고한 버전이다.
+graph_status({projectPath,graphId}).lastReport는 해당 그래프의 UI가 마지막으로 적용했다고 보고한 버전이다.
 실제 화면 확인이 필요하면 그래프 탭의 노드 렌더링을 확인한다.
 선택과 탐색 위치는 자동으로 저장되며, 다시 열 때 복구된다.
 

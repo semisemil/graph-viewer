@@ -8,11 +8,11 @@ import {browserFixture} from './browser-fixture.mjs';
 
 const packagePath = process.env.GRAPH_PANEL_PLAYWRIGHT;
 
-async function storedUntil(client, predicate) {
+async function storedUntil(client, predicate, graphId) {
   const deadline = Date.now() + 7000;
   let snapshot;
   while (Date.now() < deadline) {
-    snapshot = success(await client.call('graph_read')).snapshot;
+    snapshot = success(await client.call('graph_read', graphId ? {graphId} : {})).snapshot;
     if (predicate(snapshot)) return snapshot;
     await new Promise(resolve => setTimeout(resolve, 40));
   }
@@ -138,6 +138,50 @@ test('late old open results cannot discard a valid in-flight UI connection or ch
   assert.equal(untouched.state.views.large.query, '');
   const untouchedProject = success(await f.client.call('graph_read', {projectPath: otherProject, graphId: other.graphId})).snapshot;
   assert.equal(untouchedProject.state.views.large.query, '');
+  assert.deepEqual(f.errors, []);
+});
+
+test('multiple viewers keep their graphs and UI state while another graph opens, updates or closes', {skip: !packagePath, timeout: 30000}, async t => {
+  const f = await browserFixture(t, {entry: path.join('plugins', 'graph-viewer', 'start.ps1'), launcher: true});
+  const firstId = f.graph.graphId, other = {...researchGraph('별도 조사'), graphId: 'second-viewer'};
+  other.nodes[0].label = '별도 조사 대상';
+  await publish(f.client, other);
+  const opened = await f.client.call('open_graph', {graphId: other.graphId});
+  success(opened);
+  const second = await f.openViewer(opened);
+  await f.deliver(opened);
+  await second.deliver(f.opened);
+  await f.frame.getByRole('combobox', {name: '배치 방식'}).selectOption('tree');
+  await storedUntil(f.client, snapshot => snapshot.state.views.large.layout === 'tree', firstId);
+  await f.frame.locator('.node[data-id="evidence"]').click();
+  await storedUntil(f.client, snapshot => snapshot.state.selectedNodeId === 'evidence', firstId);
+  await second.frame.getByRole('textbox', {name: '노드 검색'}).fill('별도 조사');
+  await storedUntil(f.client, snapshot => snapshot.state.views.large.query === '별도 조사', other.graphId);
+  const edited = researchGraph('첫 그래프 개정');
+  edited.nodes[0].label = '계속 연결된 첫 그래프';
+  await publish(f.client, edited, 1);
+  await f.frame.locator('.node[data-id="question"]').filter({hasText: '계속 연결된 첫 그래프'}).waitFor();
+  assert.equal(await second.frame.locator('.node[data-id="question"]').filter({hasText: '별도 조사 대상'}).count(), 1);
+  assert.equal(await second.frame.getByRole('textbox', {name: '노드 검색'}).inputValue(), '별도 조사');
+  assert.equal(await f.frame.locator('.node[data-id="evidence"]').getAttribute('aria-pressed'), 'true');
+  assert.equal(await f.frame.getByRole('textbox', {name: '노드 검색'}).inputValue(), '');
+  await second.page.close();
+  await f.frame.getByRole('textbox', {name: '노드 검색'}).fill('첫 그래프');
+  await storedUntil(f.client, snapshot => snapshot.state.views.large.query === '첫 그래프', firstId);
+  const reopened = await f.client.call('open_graph', {graphId: other.graphId});
+  const restored = await f.openViewer(reopened);
+  assert.equal(await restored.frame.getByRole('textbox', {name: '노드 검색'}).inputValue(), '별도 조사');
+  assert.equal(await restored.frame.locator('.node[data-id="question"]').filter({hasText: '별도 조사 대상'}).count(), 1);
+  await f.frame.getByRole('textbox', {name: '노드 검색'}).fill('재열기 후에도 저장');
+  await storedUntil(f.client, snapshot => snapshot.state.views.large.query === '재열기 후에도 저장', firstId);
+  const sameGraph = await f.openViewer(await f.client.call('open_graph', {graphId: firstId}));
+  assert.equal(await sameGraph.frame.getByRole('textbox', {name: '노드 검색'}).inputValue(), '재열기 후에도 저장');
+  await sameGraph.frame.getByRole('textbox', {name: '노드 검색'}).fill('같은 그래프의 공유 상태');
+  await storedUntil(f.client, snapshot => snapshot.state.views.large.query === '같은 그래프의 공유 상태', firstId);
+  await f.page.waitForFunction(() => document.querySelector('iframe').contentDocument?.querySelector('.graph-viewer')?.shadowRoot.querySelector('input').value === '같은 그래프의 공유 상태');
+  assert.equal(await restored.frame.getByRole('textbox', {name: '노드 검색'}).inputValue(), '별도 조사');
+  assert.equal(await f.frame.locator('body>header').isVisible(), false);
+  assert.equal(await restored.frame.locator('body>header').isVisible(), false);
   assert.deepEqual(f.errors, []);
 });
 

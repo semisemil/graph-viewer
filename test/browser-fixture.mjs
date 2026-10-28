@@ -15,63 +15,69 @@ export async function browserFixture(t, { initialOrder = 'after', hostTheme = 'd
   const { chromium } = createRequire(import.meta.url)(packagePath);
   const browser = await chromium.launch(browserOptions);
   t.after(() => browser.close());
-  const page = await browser.newPage({ viewport: { width: 1200, height: 850 } });
   const errors = [];
-  page.on('pageerror', error => errors.push(error.message));
   let held;
-  await page.exposeFunction('mcpTool', async params => {
-    const result = await client.request('tools/call', { ...params, _meta: { ...params._meta, threadId: CHAT_A.threadId } });
-    if (held && params.name === 'graph_view' && params.arguments.op === 'sync' && params.arguments.sessionId === held.sessionId) {
-      const waiting = held;
-      held = null;
-      waiting.received();
-      await waiting.release;
-    }
-    return result;
-  });
-  await page.route('http://127.0.0.1/mcp-contract-host', route => route.fulfill({
-    contentType: 'text/html', body: '<title>독립 MCP 호스트</title><iframe title="그래프" style="width:100%;height:800px;border:0"></iframe>',
-  }));
-  await page.goto('http://127.0.0.1/mcp-contract-host');
-  await page.evaluate(({ html, opened, initialOrder, hostTheme }) => {
-    const frame = document.querySelector('iframe');
-    const send = message => frame.contentWindow.postMessage({ jsonrpc: '2.0', ...message }, '*');
-    window.deliverToolResult = result => send({ method: 'ui/notifications/tool-result', params: result });
-    window.deliverHostContext = context => send({method: 'ui/notifications/host-context-changed', params: context});
-    let initialDelivered = false;
-    const deliverInitial = () => {
-      if (initialDelivered) return;
-      initialDelivered = true;
-      window.deliverToolResult(opened);
-    };
-    addEventListener('message', async event => {
-      if (event.source !== frame.contentWindow) return;
-      const { id, method, params } = event.data || {};
-      if (method === 'ui/notifications/initialized') {
-        if (initialOrder === 'after') deliverInitial();
-        return;
+  async function openViewer(opened) {
+    const page = await browser.newPage({ viewport: { width: 1200, height: 850 } });
+    page.on('pageerror', error => errors.push(error.message));
+    await page.exposeFunction('mcpTool', async params => {
+      const result = await client.request('tools/call', { ...params, _meta: { ...params._meta, threadId: CHAT_A.threadId } });
+      if (held && params.name === 'graph_view' && params.arguments.op === 'sync' && params.arguments.sessionId === held.sessionId) {
+        const waiting = held;
+        held = null;
+        waiting.received();
+        await waiting.release;
       }
-      if (id === undefined) return;
-      let result;
-      if (method === 'ui/initialize') {
-        if (initialOrder === 'before') deliverInitial();
-        result = { protocolVersion: '2026-01-26', hostInfo: { name: 'independent-test-host', version: '1' }, hostContext: { displayMode: 'fullscreen', theme: hostTheme } };
-      } else if (method === 'tools/call') {
-        result = await window.mcpTool(params);
-      } else {
-        send({ id, error: { code: -32601, message: `Unexpected host request: ${method}` } });
-        return;
-      }
-      send({ id, result });
+      return result;
     });
-    frame.srcdoc = html;
-  }, { html: contents[0].text, opened, initialOrder, hostTheme });
-  const frame = page.frameLocator('iframe');
-  await frame.locator('.graph-viewer').waitFor();
+    await page.route('http://127.0.0.1/mcp-contract-host', route => route.fulfill({
+      contentType: 'text/html', body: '<title>독립 MCP 호스트</title><iframe title="그래프" style="width:100%;height:800px;border:0"></iframe>',
+    }));
+    await page.goto('http://127.0.0.1/mcp-contract-host');
+    await page.evaluate(({ html, opened, initialOrder, hostTheme }) => {
+      const frame = document.querySelector('iframe');
+      const send = message => frame.contentWindow.postMessage({ jsonrpc: '2.0', ...message }, '*');
+      window.deliverToolResult = result => send({ method: 'ui/notifications/tool-result', params: result });
+      window.deliverHostContext = context => send({method: 'ui/notifications/host-context-changed', params: context});
+      let initialDelivered = false;
+      const deliverInitial = () => {
+        if (initialDelivered) return;
+        initialDelivered = true;
+        window.deliverToolResult(opened);
+      };
+      addEventListener('message', async event => {
+        if (event.source !== frame.contentWindow) return;
+        const { id, method, params } = event.data || {};
+        if (method === 'ui/notifications/initialized') {
+          if (initialOrder === 'after') deliverInitial();
+          return;
+        }
+        if (id === undefined) return;
+        let result;
+        if (method === 'ui/initialize') {
+          if (initialOrder === 'before') deliverInitial();
+          result = { protocolVersion: '2026-01-26', hostInfo: { name: 'independent-test-host', version: '1' }, hostContext: { displayMode: 'fullscreen', theme: hostTheme } };
+        } else if (method === 'tools/call') {
+          result = await window.mcpTool(params);
+        } else {
+          send({ id, error: { code: -32601, message: `Unexpected host request: ${method}` } });
+          return;
+        }
+        send({ id, result });
+      });
+      frame.srcdoc = html;
+    }, { html: contents[0].text, opened, initialOrder, hostTheme });
+    const frame = page.frameLocator('iframe');
+    await frame.locator('.graph-viewer').waitFor();
+    return {
+      page, frame,
+      deliver: result => page.evaluate(result => window.deliverToolResult(result), result),
+      changeHostContext: context => page.evaluate(context => window.deliverHostContext(context), context),
+    };
+  }
+  const viewer = await openViewer(opened);
   return {
-    ...f, client, graph, opened, page, frame, errors,
-    deliver: result => page.evaluate(result => window.deliverToolResult(result), result),
-    changeHostContext: context => page.evaluate(context => window.deliverHostContext(context), context),
+    ...f, client, graph, opened, ...viewer, errors, openViewer,
     holdNextSync(sessionId) {
       let received, release;
       const receivedPromise = new Promise(resolve => { received = resolve; });
