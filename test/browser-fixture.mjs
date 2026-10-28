@@ -15,7 +15,7 @@ export async function browserFixture(t, { initialOrder = 'after', hostTheme = 'd
   const { chromium } = createRequire(import.meta.url)(packagePath);
   const browser = await chromium.launch(browserOptions);
   t.after(() => browser.close());
-  const errors = [];
+  const errors = [], downloads = [];
   let held;
   async function openViewer(opened) {
     const page = await browser.newPage({ viewport: { width: 1200, height: 850 } });
@@ -31,9 +31,10 @@ export async function browserFixture(t, { initialOrder = 'after', hostTheme = 'd
       return result;
     });
     await page.route('http://127.0.0.1/mcp-contract-host', route => route.fulfill({
-      contentType: 'text/html', body: '<title>독립 MCP 호스트</title><iframe title="그래프" style="width:100%;height:800px;border:0"></iframe>',
+      contentType: 'text/html', body: '<title>독립 MCP 호스트</title><iframe title="그래프" sandbox="allow-scripts allow-same-origin" style="width:100%;height:800px;border:0"></iframe>',
     }));
     await page.goto('http://127.0.0.1/mcp-contract-host');
+    await page.exposeFunction('mcpDownload', params => {downloads.push(params);});
     await page.evaluate(({ html, opened, initialOrder, hostTheme }) => {
       const frame = document.querySelector('iframe');
       const send = message => frame.contentWindow.postMessage({ jsonrpc: '2.0', ...message }, '*');
@@ -59,6 +60,16 @@ export async function browserFixture(t, { initialOrder = 'after', hostTheme = 'd
           result = { protocolVersion: '2026-01-26', hostInfo: { name: 'independent-test-host', version: '1' }, hostContext: { displayMode: 'fullscreen', theme: hostTheme } };
         } else if (method === 'tools/call') {
           result = await window.mcpTool(params);
+        } else if (method === 'ui/download-file') {
+          if (window.rejectDownloads) result = {isError: true};
+          else {
+            await window.mcpDownload(params);
+            const resource = params.contents[0].resource, link = document.createElement('a');
+            link.href = `data:${resource.mimeType};base64,${resource.blob}`;
+            link.download = decodeURIComponent(resource.uri.split('/').at(-1));
+            link.click();
+            result = {};
+          }
         } else {
           send({ id, error: { code: -32601, message: `Unexpected host request: ${method}` } });
           return;
@@ -77,7 +88,7 @@ export async function browserFixture(t, { initialOrder = 'after', hostTheme = 'd
   }
   const viewer = await openViewer(opened);
   return {
-    ...f, client, graph, opened, ...viewer, errors, openViewer,
+    ...f, client, graph, opened, ...viewer, errors, downloads, openViewer,
     holdNextSync(sessionId) {
       let received, release;
       const receivedPromise = new Promise(resolve => { received = resolve; });

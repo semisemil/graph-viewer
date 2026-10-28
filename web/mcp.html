@@ -29,10 +29,10 @@
     let actions=[], running=false, stopped=false, stale=false, timer, reported='';
     function message(text,error=false){label.textContent=text;label.dataset.error=String(error);connection.hidden=!text;}
     function sameScope(a,b){return a?.hostId===b?.hostId && a?.threadId===b?.threadId && (a?.projectPath || null)===(b?.projectPath || null);}
-    function request(method,params){
+    function request(method,params,timeout=8000){
       return new Promise((resolve,reject)=>{
         const id=++seq;
-        const timer=setTimeout(()=>{pending.delete(id);reject(new Error('호스트 응답 시간 초과'));},8000);
+        const timer=setTimeout(()=>{pending.delete(id);reject(new Error('호스트 응답 시간 초과'));},timeout);
         pending.set(id,{resolve,reject,timer});
         window.parent.postMessage({jsonrpc:'2.0',id,method,params},'*');
       });
@@ -52,6 +52,11 @@
         container.hidden=false;
         view=GraphPanel.mount(container,{graph:next.graph,state:localState(next),hostTheme,
           onThemeChange(theme){document.documentElement.style.colorScheme=theme;},
+          async onExport({blob,filename}){
+            const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=()=>reject(new Error('이미지 파일을 읽지 못했습니다.'));reader.readAsDataURL(blob);});
+            const result=await request('ui/download-file',{contents:[{type:'resource',resource:{uri:'file:///'+encodeURIComponent(filename),mimeType:'image/png',blob:data}}]},60000);
+            if(result.isError)throw new Error('앱에서 저장 요청을 취소하거나 거부했습니다.');
+          },
           onAction(action){
             if(stale || !snapshot)return;
             const queued={graphId:snapshot.graph.graphId,revision:snapshot.revision,action};

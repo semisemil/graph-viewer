@@ -19,6 +19,7 @@ const view = GraphPanel.mount(container, {
 view.update(nextGraph, nextState);
 view.setHostTheme('light');
 view.getState();
+await view.exportImage();
 view.destroy();
 ```
 
@@ -63,6 +64,16 @@ onThemeChange(theme)는 적용된 light 또는 dark 값을 전달한다.
 
 onInteraction은 카메라 조작 시작과 종료를 알린다.
 드래그 종료와 애니메이션 완료 때 완성된 카메라만 전달한다.
+
+exportImage는 전체 그래프의 PNG Blob과 파일명을 {blob,filename}으로 반환한다.
+현재 배치, 테마, 선택 강조와 검색에 따른 흐림을 포함한다.
+화면의 확대 비율과 중심은 이미지 범위를 바꾸지 않으며, 이미지 생성도 보기 상태를 바꾸지 않는다.
+도구 모음, 미니맵, 툴팁과 흐름 애니메이션은 이미지에 포함하지 않는다.
+기본 배율은 2배이며, 한 변 16,384 px와 총 33,554,432 픽셀 한도에 맞춰 축소한다.
+이미지 저장 버튼은 PNG를 만든 뒤 onExport({blob,filename}) 옵션을 호출한다.
+onExport가 없으면 브라우저 다운로드를 사용한다.
+MCP UI는 [ui/download-file](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx#requests-view--host)로 앱에 파일 저장을 요청한다.
+비어 있거나 제거한 뷰에서는 exportImage가 오류를 반환한다.
 
 ## 2. 명령
 

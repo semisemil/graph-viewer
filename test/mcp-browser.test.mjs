@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { test } from 'node:test';
 import { CHAT_B, researchGraph, publish, success, action } from './mcp-fixture.mjs';
@@ -185,6 +185,75 @@ test('multiple viewers keep their graphs and UI state while another graph opens,
   assert.deepEqual(f.errors, []);
 });
 
+test('PNG export downloads the entire themed graph through the host without changing view state', {skip: !packagePath, timeout: 30000}, async t => {
+  const nodes = Array.from({length: 8}, (_, i) => ({id: `n${i}`, type: i % 2 ? '검증' : '작업', label: `이미지로 저장할 작업 ${i}`, details: '한글 제목과 연결을 보존합니다.'}));
+  const graph = {
+    schemaVersion: 1, graphId: 'image-export', title: '이미지 저장: 전체/구조', nodes,
+    edges: nodes.slice(1).map((node, i) => ({id: `e${i}`, source: `n${i}`, target: node.id, label: '검증'})),
+    groups: [{id: 'project', label: '프로젝트 구조', nodeIds: []}, {id: 'service', label: '중첩 서비스', nodeIds: ['n0', 'n1'], parentId: 'project'}],
+  };
+  const f = await browserFixture(t, {graph, hostTheme: 'light', entry: path.join('plugins', 'graph-viewer', 'start.ps1'), launcher: true});
+  f.page.setDefaultTimeout(7000);
+  const panel = f.opened._meta.graphPanel;
+  await action(f.client, panel, {type: 'selectNode', nodeId: 'n0'});
+  await f.page.waitForFunction(() => document.querySelector('iframe').contentWindow.graphPanelView.getState().selectedNodeId === 'n0');
+  await f.frame.locator('svg.graph').evaluate(svg => Promise.allSettled(svg.getAnimations({subtree: true}).filter(a => a.effect.getTiming().iterations !== Infinity).map(a => a.finished)));
+  const button = f.frame.getByRole('button', {name: '그래프 이미지 저장'});
+  async function save(name) {
+    const waiting = f.page.waitForEvent('download');
+    await button.click();
+    const download = await waiting;
+    assert.equal(download.suggestedFilename(), 'graph-이미지 저장- 전체-구조.png');
+    const file = path.join(f.root, name);
+    await download.saveAs(file);
+    return readFile(file);
+  }
+  const state = () => f.frame.locator('svg.graph').evaluate(() => graphPanelView.getState());
+  const before = await state(), first = await save('first.png');
+  assert.equal(first.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  assert.ok(first.readUInt32BE(16) > 1200, 'offscreen nodes must be included');
+  assert.deepEqual(await state(), before);
+  await action(f.client, panel, {type: 'setCamera', camera: {x: -10000, y: -10000, zoom: .1}});
+  await f.page.waitForFunction(() => document.querySelector('iframe').contentWindow.graphPanelView.getState().camera.zoom === .1);
+  const overview = await state(), second = await save('overview.png');
+  assert.deepEqual(second, first, 'panning and overview must not hide or crop exported graph content');
+  assert.deepEqual(await state(), overview);
+  await f.frame.getByRole('combobox', {name: '화면 테마'}).selectOption('dark');
+  const dark = await save('dark.png');
+  assert.notDeepEqual(dark, first);
+  const pixel = await f.page.evaluate(async base64 => {
+    const image = new Image(); image.src = 'data:image/png;base64,' + base64; await image.decode();
+    const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
+    const context = canvas.getContext('2d'); context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let hasContent = false;
+    for (let i = 0; i < pixels.length; i += 4) if (pixels[i] !== 20 || pixels[i + 1] !== 22 || pixels[i + 2] !== 24) {hasContent = true; break;}
+    return {corner: [...pixels.slice(0, 4)], hasContent};
+  }, dark.toString('base64'));
+  assert.deepEqual(pixel.corner, [20, 22, 24, 255]);
+  assert.equal(pixel.hasContent, true, 'the export must contain graph content rather than only its background');
+  assert.equal(f.downloads.length, 3);
+  assert.equal(f.downloads[0].contents[0].resource.mimeType, 'image/png');
+  await f.page.evaluate(() => {window.rejectDownloads = true;});
+  await button.click();
+  await f.frame.getByRole('status').filter({hasText: '앱에서 저장 요청을 취소하거나 거부했습니다.'}).waitFor();
+  assert.equal(await button.isEnabled(), true);
+  assert.deepEqual(await state(), overview);
+  await f.page.evaluate(graph => {
+    const container = document.createElement('main'); container.style.height = '600px'; document.body.append(container);
+    window.standaloneView = document.querySelector('iframe').contentWindow.GraphPanel.mount(container, {graph});
+  }, graph);
+  const directDownload = f.page.waitForEvent('download');
+  await f.page.getByRole('button', {name: '그래프 이미지 저장'}).click();
+  const direct = await directDownload;
+  assert.equal(direct.suggestedFilename(), 'graph-이미지 저장- 전체-구조.png');
+  const directFile = path.join(f.root, 'standalone.png');
+  await direct.saveAs(directFile);
+  assert.equal((await readFile(directFile)).subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  await f.page.evaluate(() => window.standaloneView.destroy());
+  assert.deepEqual(f.errors, []);
+});
+
 test('Mermaid arrows and selected paths render consistently in the graph and minimap', {skip: !packagePath, timeout: 30000}, async t => {
   const f = await browserFixture(t);
   f.page.setDefaultTimeout(7000);
@@ -224,6 +293,15 @@ test('the maximum graph keeps nodes selectable in overview and restores labels a
   assert.equal(await f.frame.locator('.edge-flow:visible').count(), 1);
   assert.equal(await f.frame.locator('.node.connected').count(), 499);
   assert.equal(await f.frame.locator('.mini-node.connected').count(), 499);
+  const image = await f.frame.locator('svg.graph').evaluate(async () => {
+    const {blob} = await graphPanelView.exportImage();
+    const bytes = new DataView(await blob.arrayBuffer());
+    return {type: blob.type, size: blob.size, width: bytes.getUint32(16), height: bytes.getUint32(20)};
+  });
+  assert.equal(image.type, 'image/png');
+  assert.ok(image.size > 1000);
+  assert.ok(image.width > 0 && image.width <= 16384 && image.height > 0 && image.height <= 16384);
+  assert.ok(image.width * image.height <= 32 * 1024 * 1024);
   assert.deepEqual(f.errors, []);
 });
 
@@ -389,7 +467,7 @@ test('node details use a scrollable custom tooltip that supports hover, keyboard
   await f.page.waitForTimeout(1150);
   assert.equal(await tooltip.isVisible(), false);
 
-  await f.frame.getByRole('combobox', {name: '화면 테마'}).focus();
+  await f.frame.getByRole('button', {name: '그래프 이미지 저장', exact: true}).focus();
   await f.page.keyboard.press('Tab');
   await tooltip.waitFor();
   await f.page.keyboard.press('PageDown');
@@ -424,7 +502,7 @@ test('node details use a scrollable custom tooltip that supports hover, keyboard
   assert.ok(narrowScrollTop > 0);
   await f.page.waitForTimeout(1150);
   assert.equal(await scroller.evaluate(element => element.scrollTop), narrowScrollTop);
-  await f.frame.getByRole('combobox', {name: '화면 테마'}).focus();
+  await f.frame.getByRole('button', {name: '그래프 이미지 저장', exact: true}).focus();
   await f.page.mouse.move(0, 0);
   await tooltip.waitFor({state: 'hidden'});
   const panel = {...f.opened._meta.graphPanel, snapshot: success(await f.client.call('graph_read')).snapshot};
