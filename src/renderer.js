@@ -42,7 +42,7 @@
       .canvas{position:relative;flex:1;min-height:80px;background-color:var(--canvas);background-image:radial-gradient(var(--grid) .7px,transparent .7px);background-size:18px 18px}
       svg.graph{width:100%;height:100%;display:block;touch-action:none;cursor:grab}svg.graph:active{cursor:grabbing}.node{cursor:pointer;outline:none}.node:focus-visible>rect:first-child{stroke:var(--focus);stroke-width:3}
       .tools{position:absolute;bottom:12px;left:12px;display:flex;align-items:center;gap:2px;padding:4px;border:1px solid var(--control-border);border-radius:12px;background:color-mix(in srgb,var(--surface) 94%,transparent);box-shadow:0 4px 12px color-mix(in srgb,var(--tooltip-shadow) 45%,transparent)}
-      .tools button{width:32px}.zoom{display:flex;align-items:center;justify-content:center;min-width:46px;height:32px;margin-left:4px;padding:0 8px;border-left:1px solid var(--line);color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+      .tools button{width:32px}.tools .zoom{width:auto;min-width:46px;height:32px;margin-left:4px;padding:0 8px;border-left:1px solid var(--line);color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
       .minimap{position:absolute;right:12px;bottom:12px;width:145px;height:70px;border:1px solid var(--control-border);border-radius:7px;background:var(--node-surface);pointer-events:none}
       .viewport{fill:var(--selected);fill-opacity:.07;stroke:var(--related);stroke-width:1;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
       .mini-edge{fill:none;stroke:var(--edge);stroke-width:.8;vector-effect:non-scaling-stroke}.mini-connection.related .mini-edge{stroke:var(--edge-active);stroke-width:1.2}
@@ -75,7 +75,7 @@
       <div class="search-field">${icon('<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/>')}<input aria-label="노드 검색" placeholder="노드 검색"><button class="search-clear" type="button" aria-label="검색어 지우기" title="검색어 지우기" hidden>${icon('<path d="m8 8 8 8m0-8-8 8"/>')}</button></div>
       <div class="theme-field"><select aria-label="화면 테마"><option value="auto">자동 테마</option><option value="light">라이트</option><option value="dark">다크</option></select>${icon('<path d="m8 10 4 4 4-4"/>')}</div>
     </div></header><div class="legend" aria-label="노드 유형"></div><div class="canvas"><svg class="graph" role="group"><defs></defs><g class="world"></g></svg><div class="empty" hidden>표시할 노드가 없습니다.</div>
-      <div class="tools" role="toolbar" aria-label="그래프 보기"><button type="button" aria-label="확대" title="확대">${icon('<path d="M12 5v14M5 12h14"/>')}</button><button type="button" aria-label="축소" title="축소">${icon('<path d="M5 12h14"/>')}</button><button type="button" aria-label="전체 맞춤" title="전체 맞춤">${icon('<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>')}</button><span class="zoom"></span></div>
+      <div class="tools" role="toolbar" aria-label="그래프 보기"><button type="button" aria-label="확대" title="확대">${icon('<path d="M12 5v14M5 12h14"/>')}</button><button type="button" aria-label="축소" title="축소">${icon('<path d="M5 12h14"/>')}</button><button type="button" aria-label="전체 맞춤" title="전체 맞춤">${icon('<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>')}</button><button class="zoom" type="button" aria-label="100%로 보기" title="100%로 보기"></button></div>
       <svg class="minimap" role="img" aria-label="그래프 미니맵" tabindex="0"></svg><div class="node-tooltip" id="${id}-tooltip" role="tooltip" hidden><div class="tooltip-scroll"></div></div></div></div>`;
 
     const shell = shadow.querySelector('.shell');
@@ -99,6 +99,7 @@
     let tooltipAnchor = null, tooltipHovered = false, showTimer = 0, hideTimer = 0;
     let frame = 0, target = null, interacting = false, destroyed = false;
     let nodeElements = [], miniNodes = [], connections = [], miniConnections = [];
+    let flowSegments = [], activeFlow = [];
     let flow, surfaceWidth = 0, surfaceHeight = 0;
 
     function applyTheme() {
@@ -166,6 +167,7 @@
         const bottom = Math.max(top, Math.min(layout.height, (height - ty) / camera.zoom));
         for (const [key, value] of Object.entries({x: left, y: top, width: right - left, height: bottom - top})) viewport.setAttribute(key, value);
       }
+      updateFlow();
       positionTooltip();
     }
     function moveTo(next, duration, local = true) {
@@ -189,11 +191,16 @@
       }
       frame = window.requestAnimationFrame(step);
     }
-    function fit(local = false) {
+    function fit(local = false, initial = false) {
       surfaceWidth = svg.clientWidth; surfaceHeight = svg.clientHeight;
       if (!surfaceWidth || !surfaceHeight) return;
-      const zoom = Math.max(.001, Math.min((surfaceWidth - 30) / layout.width, (surfaceHeight - 35) / layout.height));
-      moveTo({x: layout.width / 2, y: layout.height / 2, zoom}, local ? 440 : 0, local);
+      const fitted = Math.max(.001, Math.min((surfaceWidth - 30) / layout.width, (surfaceHeight - 35) / layout.height));
+      const zoom = initial ? Math.max(.75, fitted) : fitted;
+      const first = viewMap.get(selectedNodeId) || layout.nodes[0];
+      const center = (size, screen, start) => size <= screen / zoom ? size / 2 : Math.max(screen / (2 * zoom), Math.min(size - screen / (2 * zoom), start));
+      const x = initial && first ? center(layout.width, surfaceWidth, first.x + layout.cardWidth / 2) : layout.width / 2;
+      const y = initial && first ? center(layout.height, surfaceHeight, first.y + layout.cardHeight / 2) : layout.height / 2;
+      moveTo({x, y, zoom}, local ? 440 : 0, local);
     }
     function zoom(factor, x = surfaceWidth / 2, y = surfaceHeight / 2, duration = 300) {
       if (!camera) fit();
@@ -338,6 +345,13 @@
     }
     tooltip.addEventListener('pointerenter', () => { tooltipHovered = true; window.clearTimeout(hideTimer); });
     tooltip.addEventListener('pointerleave', () => { tooltipHovered = false; leaveTooltip(); });
+    function updateFlow() {
+      if (!camera || !flow) return;
+      const halfWidth = surfaceWidth / (2 * camera.zoom) + 16, halfHeight = surfaceHeight / (2 * camera.zoom) + 16;
+      const path = camera.zoom < .2 ? '' : activeFlow.filter(segment => segment.right >= camera.x - halfWidth && segment.left <= camera.x + halfWidth && segment.bottom >= camera.y - halfHeight && segment.top <= camera.y + halfHeight).map(segment => segment.d).join(' ');
+      if (flow.getAttribute('d') !== path) flow.setAttribute('d', path);
+      flow.classList.toggle('related', !!path);
+    }
     function updateHighlights() {
       const related = selectedNodeId ? model.connectedPath(graph, selectedNodeId) : {nodes: new Set(), edges: new Set()};
       const needle = query.trim().toLocaleLowerCase();
@@ -358,9 +372,8 @@
         connection.classList.toggle('related', active);
         connection.querySelector('.edge')?.classList.toggle('related', active);
       }
-      const path = connections.filter(connection => related.edges.has(connection.dataset.id)).map(connection => connection.firstElementChild.getAttribute('d')).join(' ');
-      if (flow.getAttribute('d') !== path) flow.setAttribute('d', path);
-      flow.classList.toggle('related', !!path);
+      activeFlow = flowSegments.filter(segment => related.edges.has(segment.id));
+      updateFlow();
       positionTooltip();
     }
     function choose(nodeId) {
@@ -373,26 +386,27 @@
       moveTo({x: node.x + layout.cardWidth / 2, y: node.y + layout.cardHeight / 2, zoom: Math.max(camera?.zoom || 0, compact ? .9 : 1)}, 360);
     }
 
-    function edgeGeometry(edge, index) {
-      const a = viewMap.get(edge.source), b = viewMap.get(edge.target);
-      const w = layout.cardWidth, h = layout.cardHeight;
-      const forward = compact ? b.y > a.y : b.x > a.x;
-      if (!forward) {
-        const gap = 22 + index % 4 * 7;
-        if (compact) {
-          const x1 = a.x + w * .65, x2 = b.x + w * .35, y1 = a.y, y2 = b.y;
-          const outer = Math.min(y1, y2) - gap;
-          return {d: `M${x1} ${y1} C${x1} ${outer} ${x1} ${outer} ${(x1 + x2) / 2} ${outer} S${x2} ${outer} ${x2} ${y2 - 9}`, start: [x1, y1], end: [x2, y2], label: [(x1 + x2) / 2, outer - 5]};
-        }
-        const y1 = a.y + h * .65, y2 = b.y + h * .35, x1 = a.x, x2 = b.x;
-        const outer = Math.min(x1, x2) - gap;
-        return {d: `M${x1} ${y1} C${outer} ${y1} ${outer} ${y1} ${outer} ${(y1 + y2) / 2} S${outer} ${y2} ${x2 - 9} ${y2}`, start: [x1, y1], end: [x2, y2], label: [outer - 10, (y1 + y2) / 2 - 5]};
+    function edgeGeometry(index) {
+      const route = layout.edges[index], points = route.points.map(point => [...point]);
+      const start = route.points[0], end = route.points.at(-1);
+      for (const [i, next, distance] of [[0, 1, 6], [points.length - 1, points.length - 2, 10]]) {
+        const length = Math.hypot(points[next][0] - points[i][0], points[next][1] - points[i][1]);
+        if (length) points[i] = points[i].map((value, axis) => value + (points[next][axis] - value) * Math.min(distance / length, .5));
       }
-      const start = compact ? [a.x + w / 2, a.y + h] : [a.x + w, a.y + h / 2];
-      const end = compact ? [b.x + w / 2, b.y] : [b.x, b.y + h / 2];
-      const [x, y] = start, [ex, ey] = end;
-      const d = compact ? `M${x} ${y + 6} C${x} ${y + (ey - y) * .6} ${ex} ${ey - (ey - y) * .6} ${ex} ${ey - 10}` : `M${x + 6} ${y} C${x + (ex - x) * .6} ${y} ${ex - (ex - x) * .6} ${ey} ${ex - 10} ${ey}`;
-      return {d, start, end, label: [(x + ex) / 2 + (compact ? 18 : 0), (y + ey) / 2 - (compact ? 0 : 12)]};
+      let d = `M${points[0].join(' ')}`;
+      if (route.curve) d += ` C${points.slice(1).map(point => point.join(' ')).join(' ')}`;
+      else {
+        for (let i = 1; i < points.length - 1; i++) {
+          const corner = points[i];
+          const near = neighbor => {
+            const length = Math.hypot(neighbor[0] - corner[0], neighbor[1] - corner[1]);
+            return corner.map((value, axis) => value + (neighbor[axis] - value) * (length ? Math.min(10 / length, .5) : 0));
+          };
+          d += ` L${near(points[i - 1]).join(' ')} Q${corner.join(' ')} ${near(points[i + 1]).join(' ')}`;
+        }
+        d += ` L${points.at(-1).join(' ')}`;
+      }
+      return {d, start, end, label: route.label};
     }
     function renderGraph() {
       layout = model.layoutGraph(graph, compact);
@@ -417,9 +431,11 @@
       definitions.append(marker(`${id}-mini-arrow`, 35));
       minimap.append(definitions);
       minimap.setAttribute('viewBox', `-16 -16 ${layout.width + 32} ${layout.height + 32}`);
-      connections = []; miniConnections = []; nodeElements = []; miniNodes = [];
+      connections = []; miniConnections = []; nodeElements = []; miniNodes = []; flowSegments = []; activeFlow = [];
       graph.edges.forEach((edge, index) => {
-        const geometry = edgeGeometry(edge, index);
+        const geometry = edgeGeometry(index);
+        const points = layout.edges[index].points;
+        flowSegments.push({id: edge.id, d: geometry.d, left: Math.min(...points.map(point => point[0])), right: Math.max(...points.map(point => point[0])), top: Math.min(...points.map(point => point[1])), bottom: Math.max(...points.map(point => point[1]))});
         const connection = element(document, 'g', {class: 'connection', 'data-id': edge.id, 'data-from': edge.source, 'data-to': edge.target});
         const arrows = markerId => edge.direction === 'none' ? {} : {'marker-end': `url(#${markerId})`, ...(edge.direction === 'both' ? {'marker-start': `url(#${markerId})`} : {})};
         connection.append(element(document, 'path', {class: 'edge', d: geometry.d, fill: 'none', stroke: 'var(--edge)', 'stroke-width': 1.5, ...arrows(`${id}-arrow`)}));
@@ -441,8 +457,8 @@
         const node = element(document, 'g', {class: 'node', 'data-id': data.id, role: 'button', tabindex: 0, 'aria-label': `${data.type}: ${data.label}`, transform: `translate(${data.x} ${data.y})`});
         node.append(element(document, 'rect', {width: w, height: h, rx: 12, fill: `url(#${id}-card-${palette.indexOf(color)})`, stroke: 'var(--node-border)', 'stroke-width': 1.5}), element(document, 'rect', {x: 14, y: 16, width: 8, height: 8, rx: 2, fill: color}));
         cardText(node, 'node-type', data.type, 30, 24, 12, color, 1, 600);
-        const titleLines = cardText(node, 'node-title', data.label, 14, compact ? 45 : 55, compact ? 16 : 15, 'var(--text)', compact ? 2 : 1, 600);
-        cardText(node, 'node-body', data.details || '', 14, compact ? (titleLines > 1 ? 83 : 66) : 80, compact ? 11 : 12, 'var(--muted)', compact ? 1 : 2);
+        const titleLines = cardText(node, 'node-title', data.label, 14, compact ? 45 : 55, compact ? 16 : 15, 'var(--text)', 2, 600);
+        cardText(node, 'node-body', data.details || '', 14, compact ? (titleLines > 1 ? 83 : 66) : (titleLines > 1 ? 97 : 80), compact ? 11 : 12, 'var(--muted)', compact || titleLines > 1 ? 1 : 2);
         if (data.status) cardText(node, 'node-status', data.status, 14, h - 14, 11, color, 1);
         node.addEventListener('click', () => choose(data.id));
         node.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); focused = data.id; choose(data.id); } });
@@ -458,7 +474,7 @@
       viewport.append(element(document, 'title', {}, '현재 화면에 보이는 영역'));
       minimap.append(viewport);
       updateHighlights();
-      if (camera) transform(); else fit();
+      if (camera) transform(); else fit(false, true);
     }
 
     function validCamera(value) {
@@ -539,6 +555,7 @@
     shadow.querySelector('[aria-label="확대"]').addEventListener('click', () => zoom(1.25));
     shadow.querySelector('[aria-label="축소"]').addEventListener('click', () => zoom(.8));
     shadow.querySelector('[aria-label="전체 맞춤"]').addEventListener('click', () => fit(true));
+    shadow.querySelector('.zoom').addEventListener('click', () => { if (camera) zoom(1 / (target || camera).zoom); });
     function updateQuery() {
       query = search.value;
       clearSearch.hidden = !query;
@@ -565,7 +582,7 @@
     colorScheme.addEventListener('change', applyTheme);
     const resize = new window.ResizeObserver(([entry]) => {
       surfaceWidth = entry.contentRect.width; surfaceHeight = entry.contentRect.height;
-      if (camera) transform(); else fit();
+      if (camera) transform(); else fit(false, true);
     });
     resize.observe(svg);
     return {
@@ -587,6 +604,7 @@
         minimap.replaceChildren();
         tooltipScroll.replaceChildren();
         nodeElements = miniNodes = connections = miniConnections = [];
+        flowSegments = activeFlow = [];
         graph = layout = nodeMap = viewMap = colors = flow = null;
         options = {};
         host.remove();
