@@ -24,8 +24,8 @@
     host.style.cssText = 'display:block;width:100%;height:100%;min-height:0';
     const shadow = host.attachShadow({mode: 'open'});
     shadow.innerHTML = `<style>
-      :host{--text:#eef0f0;--muted:#aeb9c2;--surface:#1c1e20;--canvas:#141618;--grid:#363b3f;--control:#282c2f;--control-border:#4a5054;--control-hover:#363e43;--line:#36393c;--focus:#7fb5ff;--node-surface:#22272b;--card-tint:6%;--node-border:#4b535a;--selected:#c2e2ff;--related:#78b4dc;--edge:#55697d;--edge-active:#7faed4;--flow:#d4ecff;--tooltip-top:#2b3237;--tooltip-shadow:#0009;--scrollbar:#58636c;--source:#d8e3ec;--url:#94a7b7;--type-0:#43cba0;--type-1:#eab75b;--type-2:#6ba9ff;--type-3:#bb93ef;--type-4:#ee96ad;--type-5:#83cbd1;--type-6:#d5bd83;color:var(--text);font:13px system-ui,sans-serif;color-scheme:dark}
-      :host([data-theme="light"]){--text:#20303e;--muted:#526577;--surface:#fff;--canvas:#f2f5f8;--grid:#c8d2dc;--control:#fff;--control-border:#c4cfd9;--control-hover:#eaf0f6;--line:#dce3ea;--focus:#2563eb;--node-surface:#fff;--card-tint:4%;--node-border:#aebfce;--selected:#2563eb;--related:#5585b7;--edge:#7e94a9;--edge-active:#386eac;--flow:#175bd2;--tooltip-top:#f8fbff;--tooltip-shadow:#20375024;--scrollbar:#a6b6c5;--source:#354f69;--url:#536d86;--type-0:#087f62;--type-1:#946200;--type-2:#245fbe;--type-3:#7850aa;--type-4:#aa4262;--type-5:#176f7a;--type-6:#7a601e;color-scheme:light}*{box-sizing:border-box}
+      :host{--text:#eef0f0;--muted:#aeb9c2;--surface:#1c1e20;--canvas:#141618;--grid:#363b3f;--control:#282c2f;--control-border:#4a5054;--control-hover:#363e43;--line:#36393c;--focus:#7fb5ff;--node-surface:#22272b;--card-tint:6%;--node-border:#4b535a;--selected:#c2e2ff;--related:#78b4dc;--edge:#687581;--edge-active:#38bdf8;--flow:#fff4bd;--flow-glow:#7dd3fc;--tooltip-top:#2b3237;--tooltip-shadow:#0009;--scrollbar:#58636c;--source:#d8e3ec;--url:#94a7b7;--type-0:#43cba0;--type-1:#eab75b;--type-2:#6ba9ff;--type-3:#bb93ef;--type-4:#ee96ad;--type-5:#83cbd1;--type-6:#d5bd83;color:var(--text);font:13px system-ui,sans-serif;color-scheme:dark}
+      :host([data-theme="light"]){--text:#20303e;--muted:#526577;--surface:#fff;--canvas:#f2f5f8;--grid:#c8d2dc;--control:#fff;--control-border:#c4cfd9;--control-hover:#eaf0f6;--line:#dce3ea;--focus:#2563eb;--node-surface:#fff;--card-tint:4%;--node-border:#aebfce;--selected:#2563eb;--related:#5585b7;--edge:#7d8791;--edge-active:#1d4ed8;--flow:#f59e0b;--flow-glow:#fbbf24;--tooltip-top:#f8fbff;--tooltip-shadow:#20375024;--scrollbar:#a6b6c5;--source:#354f69;--url:#536d86;--type-0:#087f62;--type-1:#946200;--type-2:#245fbe;--type-3:#7850aa;--type-4:#aa4262;--type-5:#176f7a;--type-6:#7a601e;color-scheme:light}*{box-sizing:border-box}
       .shell{height:100%;display:flex;flex-direction:column;background:var(--surface);overflow:hidden}
       header{padding:10px 12px;border-bottom:1px solid var(--line)}.header-controls{display:flex;align-items:center;gap:10px;width:100%}
       button,input,select{font:inherit;color:inherit}.icon{width:16px;height:16px;flex:none;pointer-events:none}
@@ -49,7 +49,7 @@
       .tools button{width:32px}.tools .zoom{width:auto;min-width:46px;height:32px;margin-left:4px;padding:0 8px;border-left:1px solid var(--line);color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
       .minimap{position:absolute;right:12px;bottom:12px;width:145px;height:70px;border:1px solid var(--control-border);border-radius:7px;background:var(--node-surface);pointer-events:none}
       .viewport{fill:var(--selected);fill-opacity:.07;stroke:var(--related);stroke-width:1;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
-      .mini-edge{fill:none;stroke:var(--edge);stroke-width:.8;vector-effect:non-scaling-stroke}.mini-connection.related .mini-edge{stroke:var(--edge-active);stroke-width:1.2}
+      .mini-edge{fill:none;stroke:var(--edge);stroke-width:.8;vector-effect:non-scaling-stroke}.mini-connection.related .mini-edge{stroke:var(--edge-active);stroke-width:1.8}
       .mini-node{stroke:var(--node-border);stroke-width:.6;vector-effect:non-scaling-stroke;opacity:.45}.mini-node.connected{stroke:var(--related);stroke-width:1.3;opacity:.9}
       .mini-node.selected{stroke:var(--selected);stroke-width:2;opacity:1;filter:drop-shadow(0 0 20px color-mix(in srgb,var(--selected) 60%,transparent))}
       .node{transition:opacity 160ms ease}.node>rect:first-child{transition:stroke 180ms ease,stroke-width 180ms ease,filter 180ms ease}
@@ -57,13 +57,16 @@
       .group-box.related .group-border{stroke:var(--related);stroke-width:1.8;stroke-dasharray:none}.group-box.related .group-title{fill:var(--text)}
       .mini-group{fill:none;stroke:var(--node-border);stroke-width:.7;vector-effect:non-scaling-stroke}.mini-group.related{stroke:var(--related);stroke-width:1.2}
       .node.connected>rect:first-child{stroke:var(--related);stroke-width:2}.node[aria-pressed="true"]>rect:first-child{stroke:var(--selected);stroke-width:2.6;filter:drop-shadow(0 0 8px color-mix(in srgb,var(--selected) 40%,transparent))}.node.unrelated{opacity:.58}.node.search-miss{opacity:.2}
-      .edge{transition:stroke 180ms ease,stroke-width 180ms ease;stroke-linecap:round;stroke-linejoin:round}.edge.related{stroke:var(--edge-active);stroke-width:2}
-      .edge-flow{display:none;fill:none;stroke-width:2;stroke-linecap:round;stroke-dasharray:10 42;pointer-events:none}
-      .edge-flow.related{display:block;stroke:var(--flow);opacity:.95;animation:edge-current 1300ms linear infinite}
-      .port{fill:var(--node-surface);stroke:var(--edge);stroke-width:1.5}.connection.related .port{stroke:var(--related)}
+      .connection,.mini-connection{transition:opacity 180ms ease}.connection.unrelated,.mini-connection.unrelated{opacity:.35}
+      .edge{transition:stroke 180ms ease,stroke-width 180ms ease;stroke-linecap:round;stroke-linejoin:round}.edge.related{stroke:var(--edge-active);stroke-width:2.6}
+      .edge-flow,.edge-glow{display:none;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:24 72;pointer-events:none}
+      .edge-flow{stroke:var(--flow);stroke-width:3}.edge-glow{stroke:var(--flow-glow);stroke-width:9;opacity:.4}
+      .edge-flow.related,.edge-glow.related{display:block;animation:edge-current 1800ms linear infinite}
+      .port{fill:var(--node-surface);stroke:var(--edge);stroke-width:1.5}.connection.related .port{fill:var(--edge-active);stroke:var(--edge-active)}
       .edge-label{fill:var(--muted);font-size:10px;text-anchor:middle;paint-order:stroke;stroke:var(--canvas);stroke-width:5px;stroke-linejoin:round}
+      .connection.related .edge-label{fill:var(--edge-active);font-weight:600}
       .overview .node text,.overview .edge-label,.overview .port{display:none}
-      @keyframes edge-current{to{stroke-dashoffset:-52}}
+      @keyframes edge-current{to{stroke-dashoffset:-96}}
       .node-tooltip{position:absolute;z-index:3;width:360px;max-width:calc(100% - 24px);display:flex;flex-direction:column;border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line));border-radius:14px;background:linear-gradient(150deg,var(--tooltip-top),var(--node-surface) 70%);box-shadow:0 16px 40px var(--tooltip-shadow),0 0 22px color-mix(in srgb,var(--accent) 12%,transparent);color:var(--muted);cursor:auto;animation:tooltip-in 140ms ease-out}
       .node-tooltip[hidden]{display:none}.node-tooltip::after{content:'';position:absolute;width:9px;height:9px;background:var(--tooltip-top);transform:rotate(45deg);border:inherit}
       .node-tooltip[data-side="right"]::after{left:-5px;top:var(--tip);border-right:0;border-top:0}.node-tooltip[data-side="left"]::after{right:-5px;top:var(--tip);border-left:0;border-bottom:0}
@@ -74,8 +77,8 @@
       .tooltip-title{margin:0;color:var(--text);font-size:17px;line-height:1.45;font-weight:600;letter-spacing:-.015em;white-space:pre-wrap}.tooltip-body{margin-top:11px;font-size:12px;line-height:1.75;white-space:pre-wrap}
       .tooltip-sources{margin-top:14px;padding-top:11px;border-top:1px solid var(--line);display:grid;gap:9px}.tooltip-source-label{display:block;color:var(--source);font-size:11px;font-weight:600}.tooltip-source-url{display:block;margin-top:3px;color:var(--url);font-size:11px;line-height:1.6}
       @keyframes tooltip-in{from{opacity:0}to{opacity:1}}.empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);pointer-events:none}.empty[hidden]{display:none}
-      .motion-off .edge-flow{display:none!important;animation:none!important}
-      @media(prefers-reduced-motion:reduce){.edge-flow.related{display:none;animation:none}.node,.node>rect:first-child,.edge,button,.search-field{transition:none}.node-tooltip{animation:none}}
+      .motion-off .edge-flow,.motion-off .edge-glow{display:none!important;animation:none!important}
+      @media(prefers-reduced-motion:reduce){.edge-flow.related,.edge-glow.related{display:none;animation:none}.node,.node>rect:first-child,.edge,.connection,.mini-connection,button,.search-field{transition:none}.node-tooltip{animation:none}}
       @media(max-width:380px){header{padding:8px}.header-controls{gap:6px}.theme-field{width:100px}}
       @media(max-width:680px){.header-controls{flex-wrap:wrap}.layout-controls{order:3;flex-basis:100%}}
       ${compact ? 'header{padding:8px}.header-controls{gap:6px}.search-field,select{height:32px;font-size:12px}.search-clear{top:2px;right:2px}.theme-field{width:100px}.theme-field>.icon{top:8px}.legend{padding:6px 10px;gap:8px;max-height:56px}.tooltip-scroll{padding:13px 14px}.tooltip-title{font-size:15px}.tools{bottom:7px;left:7px}.tools button{width:28px;height:28px;min-width:28px}.zoom{height:28px;min-width:42px}.minimap{width:60px;height:116px;right:7px;bottom:7px;opacity:.3;pointer-events:all;transition:opacity 160ms ease}.minimap:hover,.minimap:focus-visible{opacity:1}.minimap:focus-visible{outline:2px solid var(--focus);outline-offset:2px}@media(prefers-reduced-motion:reduce){.minimap{transition:none}}' : ''}
@@ -116,7 +119,7 @@
     let nodeElements = [], miniNodes = [], connections = [], miniConnections = [];
     let groupElements = [], miniGroups = [];
     let flowSegments = [], activeFlow = [];
-    let flow, surfaceWidth = 0, surfaceHeight = 0;
+    let flow, flowGlow, surfaceWidth = 0, surfaceHeight = 0;
     let exporting = false, exportTimer = 0;
 
     function applyTheme() {
@@ -366,8 +369,10 @@
       if (!camera || !flow) return;
       const halfWidth = surfaceWidth / (2 * camera.zoom) + 16, halfHeight = surfaceHeight / (2 * camera.zoom) + 16;
       const path = camera.zoom < .2 ? '' : activeFlow.filter(segment => segment.right >= camera.x - halfWidth && segment.left <= camera.x + halfWidth && segment.bottom >= camera.y - halfHeight && segment.top <= camera.y + halfHeight).map(segment => segment.d).join(' ');
-      if (flow.getAttribute('d') !== path) flow.setAttribute('d', path);
-      flow.classList.toggle('related', !!path);
+      for (const layer of [flowGlow, flow]) {
+        if (layer.getAttribute('d') !== path) layer.setAttribute('d', path);
+        layer.classList.toggle('related', !!path);
+      }
     }
     function updateHighlights() {
       const related = selectedNodeId ? model.connectedPath(graph, selectedNodeId) : {nodes: new Set(), edges: new Set(), groups: new Set()};
@@ -388,6 +393,7 @@
       for (const connection of [...connections, ...miniConnections]) {
         const active = related.edges.has(connection.dataset.id);
         connection.classList.toggle('related', active);
+        connection.classList.toggle('unrelated', !!selectedNodeId && !active);
         connection.querySelector('.edge')?.classList.toggle('related', active);
       }
       activeFlow = flowSegments.filter(segment => related.edges.has(segment.id));
@@ -444,7 +450,7 @@
       copy.setAttribute('viewBox', `-32 -32 ${width} ${height}`);
       const scene = copy.querySelector('.world');
       scene.removeAttribute('transform'); scene.classList.remove('overview');
-      copy.querySelectorAll('.edge-flow').forEach(node => node.remove());
+      copy.querySelectorAll('.edge-flow,.edge-glow').forEach(node => node.remove());
       copy.insertBefore(element(document, 'rect', {x: -32, y: -32, width, height, fill: window.getComputedStyle(host).getPropertyValue('--canvas').trim()}), scene);
       const data = new window.Blob([new window.XMLSerializer().serializeToString(copy)], {type: 'image/svg+xml;charset=utf-8'});
       const url = window.URL.createObjectURL(data);
@@ -543,7 +549,8 @@
         minimap.append(mini); miniConnections.push(mini);
       });
       flow = element(document, 'path', {class: 'edge-flow'});
-      world.append(flow);
+      flowGlow = element(document, 'path', {class: 'edge-glow'});
+      world.append(flowGlow, flow);
       for (const data of layout.nodes) {
         const color = colors.get(data.type), w = layout.cardWidth, h = layout.cardHeight;
         const node = element(document, 'g', {class: 'node', 'data-id': data.id, role: 'button', tabindex: 0, 'aria-label': `${data.type}: ${data.label}`, transform: `translate(${data.x} ${data.y})`});
@@ -723,7 +730,7 @@
         nodeElements = miniNodes = connections = miniConnections = [];
         groupElements = miniGroups = [];
         flowSegments = activeFlow = [];
-        graph = layout = nodeMap = viewMap = colors = flow = null;
+        graph = layout = nodeMap = viewMap = colors = flow = flowGlow = null;
         options = {};
         host.remove();
       }

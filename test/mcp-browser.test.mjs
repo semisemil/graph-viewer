@@ -273,6 +273,48 @@ test('Mermaid arrows and selected paths render consistently in the graph and min
   assert.equal(await f.frame.locator('.node.connected').count(), 3);
   assert.equal(await f.frame.locator('.mini-node.connected').count(), 3);
   assert.equal(await f.frame.locator('.node.unrelated[data-id="X"]').count(), 1);
+  await f.page.emulateMedia({reducedMotion: 'no-preference'});
+  const luminance = rgb => rgb.map(c => {const s = c / 255; return s <= .04045 ? s / 12.92 : ((s + .055) / 1.055) ** 2.4;}).reduce((sum, c, i) => sum + c * [.2126, .7152, .0722][i], 0);
+  const contrast = (a, b) => {const first = luminance(a), second = luminance(b); return (Math.max(first, second) + .05) / (Math.min(first, second) + .05);};
+  for (const theme of ['light', 'dark']) {
+    await f.frame.getByRole('combobox', {name: '화면 테마'}).selectOption(theme);
+    await f.frame.locator('svg.graph').evaluate(svg => Promise.allSettled(svg.getAnimations({subtree: true}).filter(a => a.effect.getTiming().iterations !== Infinity).map(a => a.finished)));
+    const lines = await f.frame.locator('svg.graph').evaluate(svg => {
+      const root = svg.getRootNode(), style = selector => getComputedStyle(root.querySelector(selector));
+      const rgb = value => value.match(/[\d.]+/g).slice(0, 3).map(Number);
+      return {
+        background: rgb(style('.canvas').backgroundColor), active: rgb(style('.edge.related').stroke), passive: rgb(style('.connection.unrelated .edge').stroke),
+        passiveOpacity: Number(style('.connection.unrelated').opacity), activeWidth: parseFloat(style('.edge.related').strokeWidth), passiveWidth: parseFloat(style('.connection.unrelated .edge').strokeWidth),
+        miniActive: rgb(style('.mini-connection.related .mini-edge').stroke), miniOpacity: Number(style('.mini-connection.unrelated').opacity),
+        light: rgb(style('.edge-flow').stroke), glowWidth: parseFloat(style('.edge-glow').strokeWidth), lightWidth: parseFloat(style('.edge-flow').strokeWidth),
+        flowPath: root.querySelector('.edge-flow').getAttribute('d'), inactivePath: root.querySelector('.connection.unrelated .edge').getAttribute('d'),
+      };
+    });
+    const passive = lines.passive.map((c, i) => c * lines.passiveOpacity + lines.background[i] * (1 - lines.passiveOpacity));
+    assert.ok(contrast(lines.active, lines.background) >= 3, `${theme}: selected paths must stand out from the canvas`);
+    assert.ok(contrast(lines.active, passive) >= 2, `${theme}: selected and unrelated paths must remain distinct without animation`);
+    assert.ok(lines.activeWidth >= lines.passiveWidth * 1.5);
+    assert.deepEqual(lines.miniActive, lines.active);
+    assert.equal(lines.miniOpacity, lines.passiveOpacity);
+    assert.ok(contrast(lines.light, lines.active) >= 1.5, `${theme}: moving light must differ from the selected line`);
+    assert.ok(lines.glowWidth > lines.lightWidth && lines.lightWidth > lines.activeWidth);
+    assert.equal(await f.frame.locator('.edge-glow').isVisible(), true);
+    assert.equal(lines.flowPath.includes(lines.inactivePath), false);
+    const firstOffset = await f.frame.locator('.edge-flow').evaluate(node => getComputedStyle(node).strokeDashoffset);
+    await f.page.waitForTimeout(120);
+    const secondOffset = await f.frame.locator('.edge-flow').evaluate(node => getComputedStyle(node).strokeDashoffset);
+    assert.notEqual(secondOffset, firstOffset, `${theme}: light must move along the path`);
+  }
+  await f.page.emulateMedia({reducedMotion: 'reduce'});
+  assert.equal(await f.frame.locator('.edge-flow:visible,.edge-glow:visible').count(), 0);
+  assert.equal(await f.frame.locator('.edge.related').count(), 3);
+  const panel = {...f.opened._meta.graphPanel, snapshot: success(await f.client.call('graph_read')).snapshot};
+  await action(f.client, panel, {type: 'selectNode', nodeId: null});
+  await f.frame.locator('.world .connection.unrelated').waitFor({state: 'detached'});
+  assert.equal(await f.frame.locator('.edge.related,.mini-connection.related').count(), 0);
+  assert.equal(await f.frame.locator('.connection').evaluateAll(nodes => nodes.every(node => getComputedStyle(node).opacity === '1')), true);
+  await f.page.emulateMedia({reducedMotion: 'no-preference'});
+  assert.equal(await f.frame.locator('.edge-flow:visible,.edge-glow:visible').count(), 0);
   assert.deepEqual(f.errors, []);
 });
 
@@ -286,7 +328,7 @@ test('the maximum graph keeps nodes selectable in overview and restores labels a
   await storedUntil(f.client, snapshot => snapshot.state.views.large.camera?.zoom < .2);
   const title = f.frame.locator('.node[data-id="n0"] .node-title');
   assert.equal(await title.evaluate(node => getComputedStyle(node).display), 'none');
-  assert.equal(await f.frame.locator('.edge-flow:visible').count(), 0);
+  assert.equal(await f.frame.locator('.edge-flow:visible,.edge-glow:visible').count(), 0);
   await f.frame.locator('.node[data-id="n0"]').dispatchEvent('click');
   await storedUntil(f.client, snapshot => snapshot.state.selectedNodeId === 'n0' && snapshot.state.views.large.camera?.zoom >= 1);
   assert.notEqual(await title.evaluate(node => getComputedStyle(node).display), 'none');
