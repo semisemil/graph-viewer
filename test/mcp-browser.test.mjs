@@ -286,7 +286,8 @@ test('Mermaid arrows and selected paths render consistently in the graph and min
         background: rgb(style('.canvas').backgroundColor), active: rgb(style('.edge.related').stroke), passive: rgb(style('.connection.unrelated .edge').stroke),
         passiveOpacity: Number(style('.connection.unrelated').opacity), activeWidth: parseFloat(style('.edge.related').strokeWidth), passiveWidth: parseFloat(style('.connection.unrelated .edge').strokeWidth),
         miniActive: rgb(style('.mini-connection.related .mini-edge').stroke), miniOpacity: Number(style('.mini-connection.unrelated').opacity),
-        light: rgb(style('.edge-flow').stroke), glowWidth: parseFloat(style('.edge-glow').strokeWidth), lightWidth: parseFloat(style('.edge-flow').strokeWidth),
+        light: rgb(style('.edge-flow').stroke), lightWidth: parseFloat(style('.edge-flow').strokeWidth),
+        dash: style('.edge-flow').strokeDasharray, duration: style('.edge-flow').animationDuration, lightOpacity: Number(style('.edge-flow').opacity),
         flowPath: root.querySelector('.edge-flow').getAttribute('d'), inactivePath: root.querySelector('.connection.unrelated .edge').getAttribute('d'),
       };
     });
@@ -297,8 +298,12 @@ test('Mermaid arrows and selected paths render consistently in the graph and min
     assert.deepEqual(lines.miniActive, lines.active);
     assert.equal(lines.miniOpacity, lines.passiveOpacity);
     assert.ok(contrast(lines.light, lines.active) >= 1.5, `${theme}: moving light must differ from the selected line`);
-    assert.ok(lines.glowWidth > lines.lightWidth && lines.lightWidth > lines.activeWidth);
-    assert.equal(await f.frame.locator('.edge-glow').isVisible(), true);
+    assert.deepEqual(lines.light, [212, 236, 255], `${theme}: use the original dark-theme light color`);
+    assert.equal(lines.lightWidth, 2);
+    assert.equal(lines.dash, '10px, 42px');
+    assert.equal(lines.duration, '1.3s');
+    assert.equal(lines.lightOpacity, .95);
+    assert.equal(await f.frame.locator('.edge-glow').count(), 0);
     assert.equal(lines.flowPath.includes(lines.inactivePath), false);
     const firstOffset = await f.frame.locator('.edge-flow').evaluate(node => getComputedStyle(node).strokeDashoffset);
     await f.page.waitForTimeout(120);
@@ -306,7 +311,7 @@ test('Mermaid arrows and selected paths render consistently in the graph and min
     assert.notEqual(secondOffset, firstOffset, `${theme}: light must move along the path`);
   }
   await f.page.emulateMedia({reducedMotion: 'reduce'});
-  assert.equal(await f.frame.locator('.edge-flow:visible,.edge-glow:visible').count(), 0);
+  assert.equal(await f.frame.locator('.edge-flow:visible').count(), 0);
   assert.equal(await f.frame.locator('.edge.related').count(), 3);
   const panel = {...f.opened._meta.graphPanel, snapshot: success(await f.client.call('graph_read')).snapshot};
   await action(f.client, panel, {type: 'selectNode', nodeId: null});
@@ -314,7 +319,7 @@ test('Mermaid arrows and selected paths render consistently in the graph and min
   assert.equal(await f.frame.locator('.edge.related,.mini-connection.related').count(), 0);
   assert.equal(await f.frame.locator('.connection').evaluateAll(nodes => nodes.every(node => getComputedStyle(node).opacity === '1')), true);
   await f.page.emulateMedia({reducedMotion: 'no-preference'});
-  assert.equal(await f.frame.locator('.edge-flow:visible,.edge-glow:visible').count(), 0);
+  assert.equal(await f.frame.locator('.edge-flow:visible').count(), 0);
   assert.deepEqual(f.errors, []);
 });
 
@@ -328,7 +333,7 @@ test('the maximum graph keeps nodes selectable in overview and restores labels a
   await storedUntil(f.client, snapshot => snapshot.state.views.large.camera?.zoom < .2);
   const title = f.frame.locator('.node[data-id="n0"] .node-title');
   assert.equal(await title.evaluate(node => getComputedStyle(node).display), 'none');
-  assert.equal(await f.frame.locator('.edge-flow:visible,.edge-glow:visible').count(), 0);
+  assert.equal(await f.frame.locator('.edge-flow:visible').count(), 0);
   await f.frame.locator('.node[data-id="n0"]').dispatchEvent('click');
   await storedUntil(f.client, snapshot => snapshot.state.selectedNodeId === 'n0' && snapshot.state.views.large.camera?.zoom >= 1);
   assert.notEqual(await title.evaluate(node => getComputedStyle(node).display), 'none');
