@@ -18,8 +18,8 @@ export function chatRef(value) {
 
 export const sameChat = (a, b) => a?.hostId === b?.hostId && a?.threadId === b?.threadId;
 const initialState = () => ({selectedNodeId: null, views: {
-  summary: {camera: null, query: '', layout: 'layered', direction: 'vertical'},
-  large: {camera: null, query: '', layout: 'layered', direction: 'horizontal'},
+  summary: {camera: null, query: '', layout: 'layered', direction: 'vertical', collapsedGroupIds: []},
+  large: {camera: null, query: '', layout: 'layered', direction: 'horizontal', collapsedGroupIds: []},
 }});
 
 function validCamera(value) {
@@ -34,11 +34,13 @@ function validateRecord(record, ref) {
     if (ids.has(item.graph.graphId) || !Number.isSafeInteger(item.revision) || item.revision < 1 || !Number.isSafeInteger(item.stateRevision) || item.stateRevision < 0) throw new Error('저장 버전 또는 그래프 ID가 잘못됐습니다.');
     ids.add(item.graph.graphId);
     const state = item.state;
-    if (!state || state.selectedNodeId !== null && !item.graph.nodes.some(n => n.id === state.selectedNodeId)) throw new Error('저장된 선택 노드가 잘못됐습니다.');
+    if (!state || state.selectedNodeId !== null && ![...item.graph.nodes, ...(item.graph.groups || [])].some(n => n.id === state.selectedNodeId)) throw new Error('저장된 선택 노드가 잘못됐습니다.');
     for (const view of ['summary', 'large']) {
       const part = state.views?.[view];
       if (!part || typeof part.query !== 'string' || part.query.length > 2000 || part.camera !== null && !validCamera(part.camera)) throw new Error('보기 상태가 잘못됐습니다.');
       part.layout ??= 'layered'; part.direction ??= view === 'summary' ? 'vertical' : 'horizontal';
+      part.collapsedGroupIds ??= [];
+      if (!Array.isArray(part.collapsedGroupIds) || part.collapsedGroupIds.length > GraphModel.limits.groups || new Set(part.collapsedGroupIds).size !== part.collapsedGroupIds.length || part.collapsedGroupIds.some(id => !item.graph.groups?.some(group => group.id === id))) throw new Error('접힌 그룹 목록이 잘못됐습니다.');
       if (!GraphModel.layoutModes.includes(part.layout) || !GraphModel.layoutDirections.includes(part.direction)) throw new Error('배치 설정이 잘못됐습니다.');
     }
   }
@@ -151,8 +153,12 @@ export class GraphStore {
       const current = record.graphs.find(item => item.graph.graphId === graph.graphId);
       if ((current?.revision || 0) !== expectedRevision) throw failure('revision-conflict', `최신 버전은 ${current?.revision || 0}입니다.`, 409);
       const item = {graph, revision: expectedRevision + 1, state: current?.state || initialState(), stateRevision: current?.stateRevision || 0};
-      if (item.state.selectedNodeId !== null && !graph.nodes.some(n => n.id === item.state.selectedNodeId)) {
+      if (item.state.selectedNodeId !== null && ![...graph.nodes, ...(graph.groups || [])].some(n => n.id === item.state.selectedNodeId)) {
         item.state.selectedNodeId = null; item.stateRevision++;
+      }
+      for (const part of Object.values(item.state.views)) {
+        const retained = part.collapsedGroupIds.filter(id => graph.groups?.some(group => group.id === id));
+        if (retained.length !== part.collapsedGroupIds.length) {part.collapsedGroupIds = retained; item.stateRevision++;}
       }
       if (current) record.graphs[record.graphs.indexOf(current)] = item;
       else record.graphs.push(item);
@@ -219,7 +225,7 @@ export class GraphStore {
       const {action, view} = request;
       if (!['summary', 'large'].includes(view) || !action) throw failure('invalid-action', '보기와 상태 명령을 확인하세요.');
       if (action.type === 'selectNode') {
-        if (action.nodeId !== null && !item.graph.nodes.some(n => n.id === action.nodeId)) throw failure('invalid-node', '선택할 노드가 없습니다.');
+        if (action.nodeId !== null && ![...item.graph.nodes, ...(item.graph.groups || [])].some(n => n.id === action.nodeId)) throw failure('invalid-node', '선택할 노드 또는 그룹이 없습니다.');
         item.state.selectedNodeId = action.nodeId;
       } else if (action.type === 'setCamera') {
         if (!validCamera(action.camera)) throw failure('invalid-camera', '카메라 중심과 양수 배율이 필요합니다.');
@@ -234,6 +240,13 @@ export class GraphStore {
         const part = item.state.views[view];
         part.layout = action.layout; part.direction = action.direction;
         part.camera = action.camera ? {x: action.camera.x, y: action.camera.y, zoom: action.camera.zoom} : null;
+      } else if (action.type === 'setGroupCollapsed') {
+        if (!item.graph.groups?.some(group => group.id === action.groupId) || typeof action.collapsed !== 'boolean') throw failure('invalid-group', '그룹 ID와 접힘 여부를 확인하세요.');
+        if (action.camera !== undefined && !validCamera(action.camera)) throw failure('invalid-camera', '카메라 중심과 양수 배율이 필요합니다.');
+        const part = item.state.views[view], ids = new Set(part.collapsedGroupIds);
+        if (action.collapsed) ids.add(action.groupId); else ids.delete(action.groupId);
+        part.collapsedGroupIds = [...ids];
+        if (action.camera) part.camera = {x: action.camera.x, y: action.camera.y, zoom: action.camera.zoom};
       } else throw failure('invalid-action', '지원하지 않는 상태 명령입니다.');
       item.stateRevision++;
       return {write: true, value: {committed: true, snapshot: item}};

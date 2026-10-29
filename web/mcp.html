@@ -61,7 +61,7 @@
             if(stale || !snapshot)return;
             const queued={graphId:snapshot.graph.graphId,revision:snapshot.revision,action};
             const last=actions.at(-1);
-            if(last && !last.sending && last.action.type===action.type)actions[actions.length-1]=queued;
+            if(last && !last.sending && last.action.type===action.type && last.action.groupId===action.groupId)actions[actions.length-1]=queued;
             else actions.push(queued);
             schedule(0);
           },

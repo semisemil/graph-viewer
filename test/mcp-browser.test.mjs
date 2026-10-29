@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { test } from 'node:test';
-import { CHAT_B, researchGraph, publish, success, action } from './mcp-fixture.mjs';
+import { CHAT_B, researchGraph, groupedGraph, publish, success, action } from './mcp-fixture.mjs';
 
 import {browserFixture} from './browser-fixture.mjs';
 
@@ -473,6 +473,80 @@ test('Mermaid groups contain their members, keep nested boundaries and group lin
     assert.equal(contained, true);
     await bypassesCards(f.frame.locator('.graph-viewer'));
   }
+  assert.deepEqual(f.errors, []);
+});
+
+test('groups collapse into connected cards, retain nested state and restore across viewers and layouts', {skip: !packagePath, timeout: 60000}, async t => {
+  const graph = groupedGraph();
+  const f = await browserFixture(t, {graph, entry: path.join('plugins', 'graph-viewer', 'start.ps1'), launcher: true});
+  f.page.setDefaultTimeout(7000);
+  const toggle = (name, expanded) => f.frame.getByRole('button', {name: `${name} ${expanded ? '접기' : '펼치기'}`, exact: true});
+  const ids = selector => f.frame.locator(selector).evaluateAll(nodes => nodes.map(node => node.dataset.id).sort());
+  await f.frame.locator('.node[data-id="A"]').dispatchEvent('click');
+  await storedUntil(f.client, item => item.state.selectedNodeId === 'A' && item.state.views.large.camera !== null);
+  await toggle('API 서비스', true).focus();
+  await f.page.keyboard.press('Enter');
+  await storedUntil(f.client, item => item.state.views.large.collapsedGroupIds.includes('Inner'));
+  assert.deepEqual(await ids('.node'), ['C', 'D', 'E', 'Inner']);
+  assert.equal(await f.frame.locator('.node[data-id="Inner"]').getAttribute('aria-pressed'), 'true');
+  assert.equal(await toggle('API 서비스', false).getAttribute('aria-expanded'), 'false');
+  assert.deepEqual(await ids('.mini-node'), ['C', 'D', 'E', 'Inner']);
+  assert.deepEqual(await ids('.connection'), ['ad', 'bc', 'bd', 'dc', 'de', 'empty-d', 'group-d', 'self-d']);
+  for (const id of ['ad', 'bd', 'group-d']) assert.equal(await f.frame.locator(`.connection[data-id="${id}"]`).getAttribute('data-from'), 'Inner');
+  await f.frame.getByRole('textbox', {name: '노드 검색'}).fill('숨겨진 검색 대상');
+  assert.equal(await f.frame.locator('.node[data-id="Inner"].search-miss').count(), 0);
+  await f.frame.getByRole('button', {name: '검색어 지우기'}).click();
+  await f.frame.locator('.node[data-id="Inner"]').dispatchEvent('click');
+  await storedUntil(f.client, item => item.state.selectedNodeId === 'Inner' && item.state.views.large.query === '');
+  await toggle('백엔드', true).dispatchEvent('click');
+  await storedUntil(f.client, item => item.state.views.large.collapsedGroupIds.includes('Outer'));
+  assert.deepEqual(await ids('.node'), ['D', 'E', 'Outer']);
+  assert.equal(await f.frame.locator('.connection[data-id="dc"]').getAttribute('data-to'), 'Outer');
+  assert.equal(await f.frame.locator('.mini-node.selected[data-id="Outer"]').count(), 1);
+  const snapshot = success(await f.client.call('graph_read')).snapshot;
+  assert.deepEqual(snapshot.graph, graph);
+  const second = await f.openViewer(await f.client.call('open_graph', {graphId: graph.graphId}));
+  assert.equal(await second.frame.locator('.node[data-id="Outer"]').count(), 1);
+  await toggle('백엔드', false).dispatchEvent('click');
+  await storedUntil(f.client, item => !item.state.views.large.collapsedGroupIds.includes('Outer'));
+  await second.frame.locator('.node[data-id="Inner"]').waitFor();
+  assert.deepEqual(await ids('.node'), ['C', 'D', 'E', 'Inner']);
+  for (const mode of ['layered', 'tree', 'radial', 'network']) {
+    await f.frame.getByRole('combobox', {name: '배치 방식'}).selectOption(mode);
+    await storedUntil(f.client, item => item.state.views.large.layout === mode);
+    assert.equal(await f.frame.locator('.node[data-id="Inner"]').count(), 1);
+    await bypassesCards(f.frame.locator('.graph-viewer'));
+  }
+  await f.frame.getByRole('combobox', {name: '화면 테마'}).selectOption('light');
+  await toggle('빈 그룹', true).click();
+  await storedUntil(f.client, item => item.state.views.large.collapsedGroupIds.includes('Empty'));
+  assert.equal(await f.frame.locator('.connection[data-id="empty-d"]').getAttribute('data-from'), 'Empty');
+  await f.frame.locator('.node[data-id="Empty"]').dispatchEvent('click');
+  const emptyCenter = await f.frame.locator('.node[data-id="Empty"]').evaluate(node => {
+    const matrix = node.transform.baseVal[0].matrix, rect = node.querySelector('rect');
+    return {x: matrix.e + rect.width.baseVal.value / 2, y: matrix.f + rect.height.baseVal.value / 2};
+  });
+  await storedUntil(f.client, item => item.state.selectedNodeId === 'Empty' && item.state.views.large.camera?.x === emptyCenter.x && item.state.views.large.camera?.y === emptyCenter.y);
+  assert.equal(await f.frame.locator('.connection.related[data-id="empty-d"]').count(), 1);
+  const exportState = await f.frame.locator('svg.graph').evaluate(() => graphPanelView.getState());
+  await f.frame.getByRole('button', {name: '그래프 이미지 저장', exact: true}).click();
+  await f.frame.getByRole('status').filter({hasText: 'PNG 저장을 요청했습니다.'}).waitFor();
+  assert.equal(f.downloads.length, 1);
+  assert.equal(f.downloads[0].contents[0].resource.mimeType, 'image/png');
+  assert.deepEqual(await f.frame.locator('svg.graph').evaluate(() => graphPanelView.getState()), exportState);
+  await toggle('API 서비스', false).focus();
+  await f.page.keyboard.press('Space');
+  await storedUntil(f.client, item => !item.state.views.large.collapsedGroupIds.includes('Inner'));
+  assert.deepEqual(await ids('.node'), ['A', 'B', 'C', 'D', 'E', 'Empty']);
+  assert.deepEqual(await ids('.connection'), graph.edges.map(edge => edge.id).sort());
+  assert.deepEqual(success(await f.client.call('graph_read')).snapshot.graph, graph);
+  await f.frame.locator('svg.graph').evaluate(svg => {
+    const root = svg.getRootNode();
+    for (const id of ['Inner', 'Other']) root.querySelector(`.group-toggle[data-id="${id}"]`).dispatchEvent(new MouseEvent('click', {bubbles: true}));
+  });
+  await storedUntil(f.client, item => ['Inner', 'Other', 'Empty'].every(id => item.state.views.large.collapsedGroupIds.includes(id)));
+  assert.deepEqual(await ids('.node'), ['C', 'D', 'Empty', 'Inner', 'Other']);
+  await second.page.close();
   assert.deepEqual(f.errors, []);
 });
 

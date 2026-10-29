@@ -155,7 +155,7 @@ const serving = serveStdio(factory => {
     inputSchema: z.object({
       op: z.enum(['sync', 'action', 'ack']), scope: z.object({hostId: z.string(), threadId: z.string(), ...projectField}).strict(), sessionId: z.string().min(1),
       graphId: z.string().optional(), revision: z.number().int().nonnegative().optional(), expectedStateRevision: z.number().int().nonnegative().optional(),
-      action: z.object({type: z.string(), nodeId: z.string().nullable().optional(), camera: z.object({x: z.number(), y: z.number(), zoom: z.number()}).strict().optional(), query: z.string().optional(), layout: z.enum(GraphModel.layoutModes).optional(), direction: z.enum(GraphModel.layoutDirections).optional()}).strict().optional(),
+      action: z.object({type: z.string(), nodeId: z.string().nullable().optional(), groupId: z.string().optional(), collapsed: z.boolean().optional(), camera: z.object({x: z.number(), y: z.number(), zoom: z.number()}).strict().optional(), query: z.string().optional(), layout: z.enum(GraphModel.layoutModes).optional(), direction: z.enum(GraphModel.layoutDirections).optional()}).strict().optional(),
       knownGraphId: z.string().optional(), knownRevision: z.number().int().nonnegative().optional(), knownStateRevision: z.number().int().nonnegative().optional(),
       stateRevision: z.number().int().nonnegative().optional(), displayMode: z.string().optional(),
     }).strict(),

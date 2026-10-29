@@ -21,6 +21,26 @@ export function researchGraph(title = '별도 연구') {
   };
 }
 
+export function groupedGraph() {
+  return {
+    schemaVersion: 1, graphId: 'group-collapse', title: '서비스 구조',
+    nodes: ['A', 'B', 'C', 'D', 'E'].map(id => ({id, type: '서비스', label: `서비스 ${id}`, details: id === 'A' ? '숨겨진 검색 대상' : ''})),
+    groups: [
+      {id: 'Outer', label: '백엔드', nodeIds: ['C']},
+      {id: 'Inner', label: 'API 서비스', nodeIds: ['A', 'B'], parentId: 'Outer'},
+      {id: 'Other', label: '사용자 앱', nodeIds: ['E']},
+      {id: 'Empty', label: '빈 그룹', nodeIds: []},
+    ],
+    edges: [
+      {id: 'ab', source: 'A', target: 'B'}, {id: 'bc', source: 'B', target: 'C'},
+      {id: 'ad', source: 'A', target: 'D', label: '요청'}, {id: 'bd', source: 'B', target: 'D', label: '응답'},
+      {id: 'group-d', source: 'Inner', target: 'D'}, {id: 'dc', source: 'D', target: 'C', direction: 'both'},
+      {id: 'de', source: 'D', target: 'E', direction: 'none'}, {id: 'empty-d', source: 'Empty', target: 'D'},
+      {id: 'self-a', source: 'A', target: 'A'}, {id: 'self-d', source: 'D', target: 'D'},
+    ],
+  };
+}
+
 export async function fixture(t) {
   const root = await mkdtemp(path.join(tmpdir(), 'graph-mcp-contract-'));
   const dataDir = path.join(root, 'data');

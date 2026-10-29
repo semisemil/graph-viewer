@@ -5,7 +5,7 @@ import { readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { test } from 'node:test';
 import { promisify } from 'node:util';
-import { ROOT, ENTRY, CHAT_A, CHAT_B, researchGraph, fixture, success, rejected, publish, openGraph, sync, action } from './mcp-fixture.mjs';
+import { ROOT, ENTRY, CHAT_A, CHAT_B, researchGraph, groupedGraph, fixture, success, rejected, publish, openGraph, sync, action } from './mcp-fixture.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -207,6 +207,35 @@ test('acknowledged selection, camera and search survive server reconnect and UI 
   assert.deepEqual((await sync(restarted, panel))._meta.graphPanel.snapshot, panel.snapshot);
 });
 
+test('collapsed groups and group selection survive reconnect, preserve source data and prune removed groups', async t => {
+  const f = await fixture(t), client = await f.start(), graph = groupedGraph();
+  await publish(client, graph);
+  const panel = await openGraph(client, graph.graphId);
+  await action(client, panel, {type: 'setGroupCollapsed', groupId: 'Inner', collapsed: true});
+  await action(client, panel, {type: 'setGroupCollapsed', groupId: 'Outer', collapsed: true});
+  await action(client, panel, {type: 'selectNode', nodeId: 'Outer'});
+  const camera = {x: 120, y: 90, zoom: .8};
+  await action(client, panel, {type: 'setGroupCollapsed', groupId: 'Outer', collapsed: false, camera});
+  assert.deepEqual(panel.snapshot.graph, graph);
+  assert.deepEqual(panel.snapshot.state.views.large.collapsedGroupIds, ['Inner']);
+  assert.deepEqual(panel.snapshot.state.views.summary.collapsedGroupIds, []);
+  assert.deepEqual(panel.snapshot.state.views.large.camera, camera);
+  await client.stop();
+  const restarted = await f.start(), reopened = await openGraph(restarted, graph.graphId);
+  assert.deepEqual(reopened.snapshot, panel.snapshot);
+  rejected(await restarted.call('graph_view', {op: 'action', scope: CHAT_A, sessionId: reopened.sessionId,
+    graphId: graph.graphId, revision: 1, expectedStateRevision: reopened.snapshot.stateRevision,
+    action: {type: 'setGroupCollapsed', groupId: 'missing', collapsed: true}}), 'invalid-group');
+  const edited = structuredClone(graph);
+  edited.groups = edited.groups.filter(group => group.id !== 'Inner' && group.id !== 'Outer');
+  edited.edges = edited.edges.filter(edge => edge.id !== 'group-d');
+  await publish(restarted, edited, 1);
+  const saved = success(await restarted.call('graph_read', {graphId: graph.graphId})).snapshot;
+  assert.deepEqual(saved.state.views.large.collapsedGroupIds, []);
+  assert.equal(saved.state.selectedNodeId, null);
+  assert.deepEqual(saved.graph, edited);
+});
+
 test('legacy single-view records restore their connection and graph state with default layouts', async t => {
   const f = await fixture(t), client = await f.start(), graph = researchGraph();
   await publish(client, graph);
@@ -218,7 +247,7 @@ test('legacy single-view records restore their connection and graph state with d
   const key = createHash('sha256').update(JSON.stringify([CHAT_A.hostId, CHAT_A.threadId])).digest('hex');
   const file = path.join(f.dataDir, 'chats', `${key}.json`), record = JSON.parse(await readFile(file, 'utf8'));
   record.nativeView = {sessionId: panel.sessionId}; delete record.nativeViews;
-  for (const view of Object.values(record.graphs[0].state.views)) {delete view.layout; delete view.direction;}
+  for (const view of Object.values(record.graphs[0].state.views)) {delete view.layout; delete view.direction; delete view.collapsedGroupIds;}
   await writeFile(file, JSON.stringify(record), 'utf8');
   const restarted = await f.start(), saved = success(await restarted.call('graph_read', {graphId: graph.graphId})).snapshot;
   assert.deepEqual(saved.graph, graph);
@@ -227,6 +256,7 @@ test('legacy single-view records restore their connection and graph state with d
   assert.equal(saved.state.views.large.layout, 'layered');
   assert.equal(saved.state.views.large.direction, 'horizontal');
   assert.equal(saved.state.views.summary.direction, 'vertical');
+  assert.deepEqual(saved.state.views.large.collapsedGroupIds, []);
   assert.deepEqual((await sync(restarted, panel))._meta.graphPanel.snapshot, saved);
   const another = {...researchGraph('새 그래프'), graphId: 'another'};
   await publish(restarted, another);

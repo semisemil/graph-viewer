@@ -54,6 +54,7 @@
       .mini-node.selected{stroke:var(--selected);stroke-width:2;opacity:1;filter:drop-shadow(0 0 20px color-mix(in srgb,var(--selected) 60%,transparent))}
       .node{transition:opacity 160ms ease}.node>rect:first-child{transition:stroke 180ms ease,stroke-width 180ms ease,filter 180ms ease}
       .group-box{pointer-events:none}.group-border{fill:var(--surface);fill-opacity:.45;stroke:var(--node-border);stroke-width:1.2;stroke-dasharray:6 4;rx:14}.group-title{fill:var(--muted);font-size:13px;font-weight:600}
+      .group-toggle{pointer-events:all;cursor:pointer;outline:none}.group-toggle rect{fill:var(--control);stroke:var(--control-border);stroke-width:1;transition:fill 140ms ease}.group-toggle:hover rect{fill:var(--control-hover)}.group-toggle:focus-visible rect{stroke:var(--focus);stroke-width:2}.group-toggle path{fill:none;stroke:var(--muted);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
       .group-box.related .group-border{stroke:var(--related);stroke-width:1.8;stroke-dasharray:none}.group-box.related .group-title{fill:var(--text)}
       .mini-group{fill:none;stroke:var(--node-border);stroke-width:.7;vector-effect:non-scaling-stroke}.mini-group.related{stroke:var(--related);stroke-width:1.2}
       .node.connected>rect:first-child{stroke:var(--related);stroke-width:2}.node[aria-pressed="true"]>rect:first-child{stroke:var(--selected);stroke-width:2.6;filter:drop-shadow(0 0 8px color-mix(in srgb,var(--selected) 40%,transparent))}.node.unrelated{opacity:.58}.node.search-miss{opacity:.2}
@@ -109,8 +110,9 @@
     const colorScheme = window.matchMedia('(prefers-color-scheme: dark)');
     let hostTheme = options.hostTheme, themePreference = 'auto';
     try { const saved = window.localStorage.getItem('graph-viewer.theme'); if (['auto', 'light', 'dark'].includes(saved)) themePreference = saved; } catch {}
-    let graph, layout, nodeMap, viewMap, viewport, graphSignature, colors;
+    let graph, visibleGraph, representatives, layout, nodeMap, viewMap, viewport, graphSignature, colors;
     let layoutType = 'layered', direction = compact ? 'vertical' : 'horizontal';
+    let collapsedGroupIds = [];
     let selectedNodeId = null, camera = null, query = '';
     let hovered = null, focused = null, drag = null;
     let tooltipAnchor = null, tooltipHovered = false, showTimer = 0, hideTimer = 0;
@@ -215,7 +217,7 @@
       if (!surfaceWidth || !surfaceHeight) return;
       const fitted = Math.max(.001, Math.min((surfaceWidth - 30) / layout.width, (surfaceHeight - 35) / layout.height));
       const zoom = initial ? Math.max(.75, fitted) : fitted;
-      const first = viewMap.get(selectedNodeId) || layout.nodes[0];
+      const first = viewMap.get(representatives.get(selectedNodeId) || selectedNodeId) || layout.nodes[0];
       const center = (size, screen, start) => size <= screen / zoom ? size / 2 : Math.max(screen / (2 * zoom), Math.min(size - screen / (2 * zoom), start));
       const x = initial && first ? center(layout.width, surfaceWidth, first.x + layout.cardWidth / 2) : layout.width / 2;
       const y = initial && first ? center(layout.height, surfaceHeight, first.y + layout.cardHeight / 2) : layout.height / 2;
@@ -372,19 +374,23 @@
       flow.classList.toggle('related', !!path);
     }
     function updateHighlights() {
-      const related = selectedNodeId ? model.connectedPath(graph, selectedNodeId) : {nodes: new Set(), edges: new Set(), groups: new Set()};
+      const visibleSelected = representatives.get(selectedNodeId) || selectedNodeId;
+      const related = visibleSelected ? model.connectedPath(visibleGraph, visibleSelected) : {nodes: new Set(), edges: new Set(), groups: new Set()};
       const needle = query.trim().toLocaleLowerCase();
+      const matches = new Set();
+      const matchesQuery = data => `${data.label} ${data.details || ''} ${data.type || ''} ${data.status || ''}`.toLocaleLowerCase().includes(needle);
+      if (needle) for (const data of [...graph.nodes, ...(graph.groups || [])]) if (matchesQuery(data)) matches.add(representatives.get(data.id));
       for (const node of nodeElements) {
-        const selected = node.dataset.id === selectedNodeId;
+        const selected = node.dataset.id === visibleSelected;
         const data = nodeMap.get(node.dataset.id);
         node.setAttribute('aria-pressed', String(selected));
         node.classList.toggle('connected', !selected && related.nodes.has(data.id));
         node.classList.toggle('unrelated', !!selectedNodeId && !related.nodes.has(data.id));
-        node.classList.toggle('search-miss', !!needle && !`${data.label} ${data.details || ''} ${data.type} ${data.status || ''}`.toLocaleLowerCase().includes(needle));
+        node.classList.toggle('search-miss', !!needle && !matches.has(data.id));
       }
       for (const node of miniNodes) {
-        node.classList.toggle('selected', node.dataset.id === selectedNodeId);
-        node.classList.toggle('connected', node.dataset.id !== selectedNodeId && related.nodes.has(node.dataset.id));
+        node.classList.toggle('selected', node.dataset.id === visibleSelected);
+        node.classList.toggle('connected', node.dataset.id !== visibleSelected && related.nodes.has(node.dataset.id));
       }
       for (const group of [...groupElements, ...miniGroups]) group.classList.toggle('related', related.groups.has(group.dataset.id));
       for (const connection of [...connections, ...miniConnections]) {
@@ -447,7 +453,7 @@
       copy.setAttribute('viewBox', `-32 -32 ${width} ${height}`);
       const scene = copy.querySelector('.world');
       scene.removeAttribute('transform'); scene.classList.remove('overview');
-      copy.querySelectorAll('.edge-flow').forEach(node => node.remove());
+      copy.querySelectorAll('.edge-flow,.group-toggle').forEach(node => node.remove());
       copy.insertBefore(element(document, 'rect', {x: -32, y: -32, width, height, fill: window.getComputedStyle(host).getPropertyValue('--canvas').trim()}), scene);
       const data = new window.Blob([new window.XMLSerializer().serializeToString(copy)], {type: 'image/svg+xml;charset=utf-8'});
       const url = window.URL.createObjectURL(data);
@@ -492,17 +498,41 @@
       }
     }
     exportButton.addEventListener('click', saveImage);
+    function groupToggle(data, x, y, collapsed) {
+      const button = element(document, 'g', {class: 'group-toggle', 'data-id': data.id, role: 'button', tabindex: 0, 'aria-label': `${data.label} ${collapsed ? '펼치기' : '접기'}`, 'aria-expanded': String(!collapsed), transform: `translate(${x} ${y})`});
+      button.append(element(document, 'rect', {width: 28, height: 28, rx: 7}), element(document, 'path', {d: collapsed ? 'M11 8 L17 14 L11 20' : 'M8 11 L14 17 L20 11'}));
+      const toggle = () => changeGroup(data.id, !collapsed);
+      button.addEventListener('click', event => {event.stopPropagation(); toggle();});
+      button.addEventListener('keydown', event => {if (event.key === 'Enter' || event.key === ' ') {event.preventDefault(); event.stopPropagation(); toggle();}});
+      return button;
+    }
+    function changeGroup(groupId, collapsed) {
+      stopAnimation(); hideTooltip(); hovered = focused = null; drag = null;
+      interaction(true);
+      const before = viewMap.get(groupId) || layout.groups.find(group => group.id === groupId);
+      const ids = new Set(collapsedGroupIds);
+      if (collapsed) ids.add(groupId); else ids.delete(groupId);
+      collapsedGroupIds = [...ids];
+      renderGraph();
+      const after = viewMap.get(groupId) || layout.groups.find(group => group.id === groupId);
+      if (camera && before && after) {camera.x += after.x - before.x; camera.y += after.y - before.y; transform();}
+      [...shadow.querySelectorAll('.group-toggle')].find(button => button.dataset.id === groupId)?.focus();
+      emit({type: 'setGroupCollapsed', groupId, collapsed, ...(camera ? {camera: cameraCopy()} : {})});
+      interaction(false);
+    }
     function renderGraph(fitAll = false) {
-      layout = model.layoutGraph(graph, compact, {layout: layoutType, direction});
-      nodeMap = new Map(graph.nodes.map(node => [node.id, node]));
+      const presentation = model.collapseGroups(graph, collapsedGroupIds);
+      visibleGraph = presentation.graph; representatives = presentation.representatives;
+      layout = model.layoutGraph(visibleGraph, compact, {layout: layoutType, direction});
+      nodeMap = new Map(visibleGraph.nodes.map(node => [node.id, node]));
       viewMap = new Map(layout.nodes.map(node => [node.id, node]));
       svg.setAttribute('aria-label', graph.title);
-      shadow.querySelector('.empty').hidden = graph.nodes.length !== 0 || layout.groups.length !== 0;
-      exportButton.disabled = exporting || !graph.nodes.length && !layout.groups.length;
+      shadow.querySelector('.empty').hidden = visibleGraph.nodes.length !== 0 || layout.groups.length !== 0;
+      exportButton.disabled = exporting || !visibleGraph.nodes.length && !layout.groups.length;
       const legend = shadow.querySelector('.legend');
       legend.replaceChildren();
       colors = new Map();
-      for (const node of graph.nodes) if (!colors.has(node.type)) {
+      for (const node of visibleGraph.nodes) if (!colors.has(node.type)) {
         const color = palette[colors.size % palette.length];
         colors.set(node.type, color);
         const item = document.createElement('span');
@@ -522,12 +552,12 @@
         const group = element(document, 'g', {class: 'group-box', 'data-id': data.id, role: 'group', 'aria-label': data.label});
         group.append(element(document, 'rect', {class: 'group-border', x: data.x, y: data.y, width: data.width, height: data.height, rx: 14}));
         const label = element(document, 'text', {class: 'group-title', x: data.x + 16, y: data.y + 24});
-        fitText(data.label, data.width - 32, '600 13px system-ui, sans-serif', 2).forEach((text, i) => label.append(element(document, 'tspan', {x: data.x + 16, dy: i ? 17 : 0}, text)));
-        group.append(label); world.append(group); groupElements.push(group);
+        fitText(data.label, data.width - 76, '600 13px system-ui, sans-serif', 2).forEach((text, i) => label.append(element(document, 'tspan', {x: data.x + 16, dy: i ? 17 : 0}, text)));
+        group.append(label, groupToggle(data, data.x + data.width - 40, data.y + 10, false)); world.append(group); groupElements.push(group);
         const mini = element(document, 'rect', {class: 'mini-group', 'data-id': data.id, x: data.x, y: data.y, width: data.width, height: data.height, rx: 14});
         minimap.append(mini); miniGroups.push(mini);
       }
-      graph.edges.forEach((edge, index) => {
+      visibleGraph.edges.forEach((edge, index) => {
         const geometry = edgeGeometry(index);
         const points = layout.edges[index].points;
         flowSegments.push({id: edge.id, d: geometry.d, left: Math.min(...points.map(point => point[0])), right: Math.max(...points.map(point => point[0])), top: Math.min(...points.map(point => point[1])), bottom: Math.max(...points.map(point => point[1]))});
@@ -562,6 +592,7 @@
         node.addEventListener('focus', () => { if (node.matches(':focus-visible')) { focused = data.id; hovered = null; requestTooltip(true); } });
         node.addEventListener('blur', () => { focused = null; leaveTooltip(); });
         world.append(node); nodeElements.push(node);
+        if (collapsedGroupIds.includes(data.id)) world.append(groupToggle(data, data.x + w - 42, data.y + 8, true));
         const mini = element(document, 'rect', {class: 'mini-node', 'data-id': data.id, x: data.x, y: data.y, width: w, height: h, rx: 12, fill: color});
         minimap.append(mini); miniNodes.push(mini);
       }
@@ -582,15 +613,18 @@
       const changedGraph = graphSignature !== signature;
       if (!changedGraph && !state) return;
       const previousSelected = selectedNodeId, previousQuery = query;
-      const previousLayout = layoutType, previousDirection = direction;
+      const previousLayout = layoutType, previousDirection = direction, previousCollapsed = JSON.stringify(collapsedGroupIds);
       const changedId = graph?.graphId !== next.graphId;
-      if (changedId) { selectedNodeId = null; camera = null; query = ''; layoutType = 'layered'; direction = compact ? 'vertical' : 'horizontal'; }
+      if (changedId) { selectedNodeId = null; camera = null; query = ''; layoutType = 'layered'; direction = compact ? 'vertical' : 'horizontal'; collapsedGroupIds = []; }
       if (state) {
         if (model.layoutModes.includes(state.layout)) layoutType = state.layout;
         if (model.layoutDirections.includes(state.direction)) direction = state.direction;
+        if (Array.isArray(state.collapsedGroupIds)) collapsedGroupIds = [...new Set(state.collapsedGroupIds)];
       }
+      collapsedGroupIds = collapsedGroupIds.filter(id => next.groups?.some(group => group.id === id));
+      const changedGroups = previousCollapsed !== JSON.stringify(collapsedGroupIds);
       const changedLayout = previousLayout !== layoutType || previousDirection !== direction;
-      if (changedGraph || changedLayout) {
+      if (changedGraph || changedLayout || changedGroups) {
         stopAnimation();
         hideTooltip();
         drag = null;
@@ -606,13 +640,13 @@
         }
         if (typeof state.query === 'string') query = state.query;
       }
-      if (!graph.nodes.some(node => node.id === selectedNodeId)) selectedNodeId = null;
+      if (![...graph.nodes, ...(graph.groups || [])].some(node => node.id === selectedNodeId)) selectedNodeId = null;
       search.value = query;
       clearSearch.hidden = !query;
       layoutSelect.value = layoutType; directionSelect.value = direction;
       directionSelect.disabled = layoutType === 'radial' || layoutType === 'network';
       directionSelect.title = directionSelect.disabled ? '계층형과 트리형에서 방향을 선택합니다.' : '';
-      if (changedGraph || changedLayout) {
+      if (changedGraph || changedLayout || changedGroups) {
         hovered = null; focused = null;
         graphSignature = signature;
         renderGraph();
@@ -627,7 +661,7 @@
       finishInteraction();
     }
     svg.addEventListener('pointerdown', event => {
-      if (event.button !== 0 || event.target.closest('.node')) return;
+      if (event.button !== 0 || event.target.closest('.node,.group-toggle')) return;
       hovered = focused = null; hideTooltip();
       if (!camera) fit();
       if (!camera) return;
@@ -642,7 +676,7 @@
     });
     for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) svg.addEventListener(name, endDrag);
     svg.addEventListener('dblclick', event => {
-      if (event.button !== 0 || !camera) return;
+      if (event.button !== 0 || !camera || event.target.closest('.group-toggle')) return;
       event.preventDefault();
       if (drag) endDrag();
       const bounds = svg.getBoundingClientRect();
@@ -707,7 +741,7 @@
       update,
       setHostTheme,
       exportImage,
-      getState() { return {selectedNodeId, camera: cameraCopy(), query, layout: layoutType, direction}; },
+      getState() { return {selectedNodeId, camera: cameraCopy(), query, layout: layoutType, direction, collapsedGroupIds: [...collapsedGroupIds]}; },
       destroy() {
         if (destroyed) return;
         destroyed = true;
@@ -726,7 +760,7 @@
         nodeElements = miniNodes = connections = miniConnections = [];
         groupElements = miniGroups = [];
         flowSegments = activeFlow = [];
-        graph = layout = nodeMap = viewMap = colors = flow = null;
+        graph = visibleGraph = representatives = layout = nodeMap = viewMap = colors = flow = null;
         options = {};
         host.remove();
       }

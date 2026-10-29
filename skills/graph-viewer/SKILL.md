@@ -15,7 +15,7 @@ description: Create and update interactive graphs from Mermaid flowcharts or JSO
    프로젝트나 영역을 한 그래프 안에서 구분하려면 subgraph를 사용한다.
    그룹 제목, 중첩 테두리와 그룹 간 연결을 지원한다.
    상세 설명, 상태나 출처가 필요하면 [그래프 JSON 형식](references/graph-format.md)을 읽고 JSON을 작성한다.
-   같은 그래프를 갱신할 때 graphId와 유지할 노드 ID를 보존한다.
+   같은 그래프를 갱신할 때 graphId와 유지할 노드 및 그룹 ID를 보존한다.
    탐색 기록은 사용자에게 설명할 목표, 관찰, 실행 결과와 결론을 사용한다.
 2. `graph_status({projectPath,graphId})`로 현재 revision을 확인한다.
    본문이 필요할 때 `graph_read({projectPath,graphId})`를 사용한다.
@@ -37,6 +37,6 @@ description: Create and update interactive graphs from Mermaid flowcharts or JSO
 committed:true는 저장 완료, requested:true는 탭 열기 요청이다.
 graph_status({projectPath,graphId}).lastReport는 해당 그래프의 UI가 마지막으로 적용했다고 보고한 버전이다.
 실제 화면 확인이 필요하면 그래프 탭의 노드 렌더링을 확인한다.
-선택과 탐색 위치는 자동으로 저장되며, 다시 열 때 복구된다.
+선택, 탐색 위치와 그룹 접힘 상태는 자동으로 저장되며, 다시 열 때 복구된다.
 
 도구가 없거나 missing-chat-context가 발생하면 [설치와 연결](references/installation.md)을 확인한다.

@@ -131,6 +131,7 @@ test('shared selection, independent cameras and search survive edits without los
   const graph = researchGraph();
   const summary = { zoom: 0.8, x: 31, y: -47 };
   const large = { zoom: 1.6, x: -210, y: 85 };
+  graph.groups = [{id: 'service', label: '서비스', nodeIds: ['question', 'evidence']}];
   await service.publish(THREAD_A, graph, 0);
   await service.action(THREAD_A, graph.graphId, 'summary', { type: 'selectNode', nodeId: 'evidence' });
   await service.action(THREAD_A, graph.graphId, 'summary', { type: 'setLayout', layout: 'radial', direction: 'vertical' });
@@ -139,6 +140,7 @@ test('shared selection, independent cameras and search survive edits without los
   await service.action(THREAD_A, graph.graphId, 'large', { type: 'setCamera', camera: large });
   await service.action(THREAD_A, graph.graphId, 'summary', { type: 'setQuery', query: '증거' });
   await service.action(THREAD_A, graph.graphId, 'large', { type: 'setQuery', query: '별도 도메인' });
+  await service.action(THREAD_A, graph.graphId, 'summary', { type: 'setGroupCollapsed', groupId: 'service', collapsed: true });
   const before = await service.read(THREAD_A, graph.graphId);
   assert.equal(before.state.selectedNodeId, 'evidence');
   assert.deepEqual(before.state.views.summary.camera, summary);
@@ -147,7 +149,9 @@ test('shared selection, independent cameras and search survive edits without los
   assert.equal(before.state.views.large.query, '별도 도메인');
   assert.equal(before.state.views.summary.layout, 'radial');
   assert.equal(before.state.views.large.layout, 'network');
-  await service.publish(THREAD_A, researchGraph('본문 수정'), 1);
+  assert.deepEqual(before.state.views.summary.collapsedGroupIds, ['service']);
+  assert.deepEqual(before.state.views.large.collapsedGroupIds, []);
+  await service.publish(THREAD_A, {...graph, title: '본문 수정'}, 1);
   const after = await service.read(THREAD_A, graph.graphId);
   assert.deepEqual(after.state, before.state);
 });
