@@ -161,39 +161,158 @@
     const gapX = directed && !vertical ? mainGap : crossGap, gapY = directed && vertical ? mainGap : crossGap;
     const stepX = width + gapX, stepY = height + gapY;
     const owners = new Map(graph.groups.flatMap(group => group.nodeIds.map(id => [id, group.id])));
+    const originalEdges = new Map(graph.edges.map(edge => [edge.id, edge]));
+    const rectangle = (block, dx, dy) => ({block, dx, dy, left: block.left + dx, top: block.top + dy, right: block.right + dx, bottom: block.bottom + dy});
+    const align = (block, x, y) => rectangle(block, Math.ceil((x - block.left) / stepX) * stepX, Math.ceil((y - block.top) / stepY) * stepY);
+    const bounds = items => ({left: Math.min(...items.map(item => item.left)), top: Math.min(...items.map(item => item.top)), right: Math.max(...items.map(item => item.right)), bottom: Math.max(...items.map(item => item.bottom))});
+    function pack(blocks) {
+      if (!blocks.length) return [];
+      const sorted = [...blocks].sort((a, b) => (b.bottom - b.top) - (a.bottom - a.top) || (b.right - b.left) - (a.right - a.left));
+      const area = blocks.reduce((sum, block) => sum + (block.right - block.left) * (block.bottom - block.top), 0);
+      const widest = Math.max(...blocks.map(block => block.right - block.left));
+      let best, bestScore = Infinity;
+      for (const ratio of [.6, 1, 1.6, 2.4, 3.5]) {
+        const limit = Math.max(widest, Math.sqrt(area * ratio)) + stepX;
+        let x = 0, y = 0, bottom = 0;
+        const placed = [];
+        for (const block of sorted) {
+          let item = align(block, x, y);
+          if (x && item.right > limit) {x = 0; y = bottom + 20; item = align(block, x, y);}
+          placed.push(item); x = item.right + 20; bottom = Math.max(bottom, item.bottom);
+        }
+        const box = bounds(placed), w = box.right - box.left, h = box.bottom - box.top;
+        const score = w * h * (1 + .15 * Math.log(w / h / 1.6) ** 2);
+        if (score < bestScore) {best = placed; bestScore = score;}
+      }
+      return best;
+    }
+    function place(units, edges, anchors) {
+      if (units.length === 1) return [rectangle(units[0], 0, 0)];
+      const coarse = layoutGraph({...graph, groups: undefined, nodes: units.map(unit => ({id: unit.id, label: unit.label, type: '배치'})), edges}, compact, options);
+      const byId = new Map(units.map(unit => [unit.id, unit]));
+      if (!directed) {
+        const placed = [];
+        const collides = item => placed.some(other => item.left < other.right + 20 && item.right + 20 > other.left && item.top < other.bottom + 20 && item.bottom + 20 > other.top);
+        for (const position of [...coarse.nodes].sort((a, b) => {
+          const first = byId.get(a.id), second = byId.get(b.id);
+          return (second.right - second.left) * (second.bottom - second.top) - (first.right - first.left) * (first.bottom - first.top);
+        })) {
+          const unit = byId.get(position.id), desired = align(unit, position.x, position.y);
+          let item = desired;
+          if (collides(item)) {
+            const candidates = [];
+            for (const other of placed) {
+              const xs = [Math.floor((other.left - 20 - unit.right) / stepX) * stepX, Math.ceil((other.right + 20 - unit.left) / stepX) * stepX];
+              const ys = [Math.floor((other.top - 20 - unit.bottom) / stepY) * stepY, Math.ceil((other.bottom + 20 - unit.top) / stepY) * stepY];
+              for (const dx of xs) for (const dy of [desired.dy, Math.round((other.top - unit.top) / stepY) * stepY, Math.round((other.bottom - unit.bottom) / stepY) * stepY]) candidates.push(rectangle(unit, dx, dy));
+              for (const dy of ys) for (const dx of [desired.dx, Math.round((other.left - unit.left) / stepX) * stepX, Math.round((other.right - unit.right) / stepX) * stepX]) candidates.push(rectangle(unit, dx, dy));
+            }
+            const occupied = bounds(placed);
+            const score = candidate => (candidate.dx - desired.dx) ** 2 + (candidate.dy - desired.dy) ** 2 + .1 * (Math.max(occupied.right, candidate.right) - Math.min(occupied.left, candidate.left)) * (Math.max(occupied.bottom, candidate.bottom) - Math.min(occupied.top, candidate.top));
+            candidates.sort((a, b) => score(a) - score(b));
+            item = candidates.find(candidate => !collides(candidate));
+          }
+          placed.push(item);
+        }
+        if (options.layout === 'network') {
+          const positions = new Map(placed.map(item => [item.block.id, item]));
+          const incident = new Map(units.map(unit => [unit.id, []]));
+          for (const edge of edges) {incident.get(edge.source).push(edge); incident.get(edge.target).push(edge);}
+          const fixed = placed[0], center = [(fixed.left + fixed.right) / 2, (fixed.top + fixed.bottom) / 2];
+          for (let sweep = 0; sweep < 8; sweep++) for (const item of sweep % 2 ? placed.slice(1).reverse() : placed.slice(1)) {
+            const energy = candidate => {
+              let value = .02 * (((candidate.left + candidate.right) / 2 - center[0]) ** 2 + ((candidate.top + candidate.bottom) / 2 - center[1]) ** 2);
+              for (const edge of incident.get(item.block.id)) {
+                const a = edge.source === item.block.id ? candidate : positions.get(edge.source), b = edge.target === item.block.id ? candidate : positions.get(edge.target);
+                const original = originalEdges.get(edge.id), start = anchors.get(original.source), end = anchors.get(original.target);
+                value += (a.dx + start.x - b.dx - end.x) ** 2 + (a.dy + start.y - b.dy - end.y) ** 2;
+              }
+              return value;
+            };
+            let best = item, bestEnergy = energy(item);
+            for (const x of [-1, 0, 1]) for (const y of [-1, 0, 1]) {
+              if (!x && !y) continue;
+              const candidate = rectangle(item.block, item.dx + x * stepX, item.dy + y * stepY);
+              if (placed.some(other => other !== item && candidate.left < other.right + 20 && candidate.right + 20 > other.left && candidate.top < other.bottom + 20 && candidate.bottom + 20 > other.top)) continue;
+              const value = energy(candidate);
+              if (value < bestEnergy) {best = candidate; bestEnergy = value;}
+            }
+            if (best !== item) Object.assign(item, best);
+          }
+        }
+        return placed;
+      }
+      const main = vertical ? 'y' : 'x', cross = vertical ? 'x' : 'y';
+      const before = vertical ? 'top' : 'left', after = vertical ? 'bottom' : 'right';
+      const crossBefore = vertical ? 'left' : 'top', crossAfter = vertical ? 'right' : 'bottom';
+      const mainStep = vertical ? stepY : stepX, crossStep = vertical ? stepX : stepY;
+      const levels = new Map();
+      for (const position of coarse.nodes) {
+        const rank = Math.round(position[main] / mainStep);
+        if (!levels.has(rank)) levels.set(rank, []);
+        levels.get(rank).push(position);
+      }
+      const placed = [], ranks = [], positionOf = new Map();
+      let cursor = 0;
+      for (const [rank, positions] of [...levels].sort((a, b) => a[0] - b[0])) {
+        const mainOffset = Math.ceil((cursor - Math.min(...positions.map(position => byId.get(position.id)[before]))) / mainStep) * mainStep;
+        let crossCursor = 0;
+        const row = [];
+        for (const position of positions.sort((a, b) => a[cross] - b[cross])) {
+          const unit = byId.get(position.id), crossOffset = Math.ceil((crossCursor - unit[crossBefore]) / crossStep) * crossStep;
+          const item = rectangle(unit, vertical ? crossOffset : mainOffset, vertical ? mainOffset : crossOffset);
+          item.rank = rank; row.push(item); placed.push(item); positionOf.set(unit.id, item);
+          crossCursor = crossOffset + unit[crossAfter] + 20;
+        }
+        ranks.push({rank, items: row, span: crossCursor});
+        cursor = mainOffset + Math.max(...positions.map(position => byId.get(position.id)[after])) + 20;
+      }
+      const fixed = ranks.reduce((a, b) => a.span >= b.span ? a : b);
+      for (let sweep = 0; sweep < 4; sweep++) for (const row of sweep % 2 ? [...ranks].reverse() : ranks) {
+        if (row === fixed) continue;
+        const shifts = [];
+        for (const edge of edges) {
+          const a = positionOf.get(edge.source), b = positionOf.get(edge.target);
+          if (a.rank === b.rank || a.rank !== row.rank && b.rank !== row.rank) continue;
+          const original = originalEdges.get(edge.id);
+          const delta = (b[vertical ? 'dx' : 'dy'] + anchors.get(original.target)[cross]) - (a[vertical ? 'dx' : 'dy'] + anchors.get(original.source)[cross]);
+          shifts.push(a.rank === row.rank ? delta : -delta);
+        }
+        if (!shifts.length) continue;
+        shifts.sort((a, b) => a - b);
+        const shift = Math.round(shifts[Math.floor(shifts.length / 2)] / crossStep) * crossStep;
+        for (const item of row.items) {
+          if (vertical) {item.dx += shift; item.left += shift; item.right += shift;}
+          else {item.dy += shift; item.top += shift; item.bottom += shift;}
+        }
+      }
+      return placed;
+    }
     function arrange(parentId) {
       const units = graph.nodes.filter(node => owners.get(node.id) === parentId).map(node => ({id: node.id, label: node.label, nodes: [{...node, x: 0, y: 0}], groups: [], left: 0, top: 0, right: width, bottom: height}));
       for (const group of graph.groups.filter(group => group.parentId === parentId)) units.push({...arrange(group.id), id: group.id, label: group.label});
-      const unitOf = new Map();
-      for (const unit of units) for (const item of [...unit.nodes, ...unit.groups]) unitOf.set(item.id, unit.id);
+      const unitOf = new Map(), anchors = new Map();
+      for (const unit of units) {
+        for (const node of unit.nodes) {unitOf.set(node.id, unit.id); anchors.set(node.id, {x: node.x + width / 2, y: node.y + height / 2});}
+        for (const group of unit.groups) {unitOf.set(group.id, unit.id); anchors.set(group.id, {x: group.x + group.width / 2, y: group.y + group.height / 2});}
+      }
       const edges = graph.edges.flatMap(edge => {
         const source = unitOf.get(edge.source), target = unitOf.get(edge.target);
         return source && target && source !== target ? [{...edge, source, target}] : [];
       });
-      const coarse = layoutGraph({...graph, groups: undefined, nodes: units.map(unit => ({id: unit.id, label: unit.label, type: '배치'})), edges}, compact, options);
-      const minX = coarse.nodes.length ? Math.min(...coarse.nodes.map(node => node.x)) : 0;
-      const minY = coarse.nodes.length ? Math.min(...coarse.nodes.map(node => node.y)) : 0;
       const nodes = [], groups = [], byId = new Map(units.map(unit => [unit.id, unit]));
-      function offsets(axis, minimum, step, before, after) {
-        const spans = new Map();
-        for (const position of coarse.nodes) {
-          const cell = Math.round((position[axis] - minimum) / step), unit = byId.get(position.id), span = spans.get(cell);
-          spans.set(cell, {lo: Math.min(span?.lo ?? Infinity, unit[before]), hi: Math.max(span?.hi ?? -Infinity, unit[after])});
-        }
-        let cursor = 0, previous = -1;
-        const result = new Map();
-        for (const [cell, span] of [...spans].sort((a, b) => a[0] - b[0])) {
-          cursor += (cell - previous - 1) * step;
-          const offset = Math.ceil((cursor - span.lo) / step) * step;
-          result.set(cell, offset); cursor = offset + span.hi + 20; previous = cell;
-        }
-        return result;
+      const adjacent = new Map(units.map(unit => [unit.id, new Set()]));
+      for (const edge of edges) {adjacent.get(edge.source).add(edge.target); adjacent.get(edge.target).add(edge.source);}
+      const seen = new Set(), pieces = [];
+      for (const unit of units) {
+        if (seen.has(unit.id)) continue;
+        const ids = new Set([unit.id]), queue = [unit.id]; seen.add(unit.id);
+        for (let i = 0; i < queue.length; i++) for (const id of adjacent.get(queue[i])) if (!seen.has(id)) {seen.add(id); ids.add(id); queue.push(id);}
+        const placements = place(queue.map(id => byId.get(id)), edges.filter(edge => ids.has(edge.source) && ids.has(edge.target)), anchors);
+        pieces.push({...bounds(placements), placements});
       }
-      const columns = offsets('x', minX, stepX, 'left', 'right'), rows = offsets('y', minY, stepY, 'top', 'bottom');
-      for (const position of coarse.nodes) {
-        const unit = byId.get(position.id);
-        const dx = columns.get(Math.round((position.x - minX) / stepX));
-        const dy = rows.get(Math.round((position.y - minY) / stepY));
+      for (const piece of pack(pieces)) for (const placement of piece.block.placements) {
+        const unit = placement.block, dx = placement.dx + piece.dx, dy = placement.dy + piece.dy;
         nodes.push(...unit.nodes.map(node => ({...node, x: node.x + dx, y: node.y + dy})));
         groups.push(...unit.groups.map(group => ({...group, x: group.x + dx, y: group.y + dy})));
       }

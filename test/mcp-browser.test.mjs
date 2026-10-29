@@ -29,15 +29,10 @@ async function bypassesCards(locator) {
     const collisions = [];
     for (const path of paths) {
       const edge = path.parentElement.dataset, length = path.getTotalLength();
+      const points = Array.from({length: Math.ceil(length / 3) + 1}, (_, i) => path.getPointAtLength(Math.min(i * 3, length)));
       for (const card of cards) {
         if (card.id === edge.from || card.id === edge.to) continue;
-        for (let t = 0; t <= length; t += 3) {
-          const point = path.getPointAtLength(t);
-          if (point.x > card.x + 3 && point.x < card.x + card.width - 3 && point.y > card.y + 3 && point.y < card.y + card.height - 3) {
-            collisions.push({edge: edge.id, card: card.id});
-            break;
-          }
-        }
+        if (points.some(point => point.x > card.x + 3 && point.x < card.x + card.width - 3 && point.y > card.y + 3 && point.y < card.y + card.height - 3)) collisions.push({edge: edge.id, card: card.id});
       }
     }
     return collisions;
@@ -285,7 +280,7 @@ test('Mermaid arrows and selected paths render consistently in the graph and min
       return {
         background: rgb(style('.canvas').backgroundColor), active: rgb(style('.edge.related').stroke), passive: rgb(style('.connection.unrelated .edge').stroke),
         passiveOpacity: Number(style('.connection.unrelated').opacity), activeWidth: parseFloat(style('.edge.related').strokeWidth), passiveWidth: parseFloat(style('.connection.unrelated .edge').strokeWidth),
-        miniActive: rgb(style('.mini-connection.related .mini-edge').stroke), miniOpacity: Number(style('.mini-connection.unrelated').opacity),
+        miniActive: rgb(style('.mini-connection.related .mini-edge').stroke), miniOpacity: Number(style('.mini-connection:not(.related)').opacity), miniWidth: parseFloat(style('.mini-connection.related .mini-edge').strokeWidth),
         light: rgb(style('.edge-flow').stroke), lightWidth: parseFloat(style('.edge-flow').strokeWidth),
         dash: style('.edge-flow').strokeDasharray, duration: style('.edge-flow').animationDuration, lightOpacity: Number(style('.edge-flow').opacity),
         flowPath: root.querySelector('.edge-flow').getAttribute('d'), inactivePath: root.querySelector('.connection.unrelated .edge').getAttribute('d'),
@@ -295,8 +290,9 @@ test('Mermaid arrows and selected paths render consistently in the graph and min
     assert.ok(contrast(lines.active, lines.background) >= 3, `${theme}: selected paths must stand out from the canvas`);
     assert.ok(contrast(lines.active, passive) >= 2, `${theme}: selected and unrelated paths must remain distinct without animation`);
     assert.ok(lines.activeWidth >= lines.passiveWidth * 1.5);
-    assert.deepEqual(lines.miniActive, lines.active);
-    assert.equal(lines.miniOpacity, lines.passiveOpacity);
+    assert.deepEqual(lines.miniActive, theme === 'light' ? [56, 110, 172] : [127, 174, 212]);
+    assert.equal(lines.miniOpacity, 1);
+    assert.equal(lines.miniWidth, 1.2);
     assert.ok(contrast(lines.light, lines.active) >= 1.5, `${theme}: moving light must differ from the selected line`);
     assert.deepEqual(lines.light, [212, 236, 255], `${theme}: use the original dark-theme light color`);
     assert.equal(lines.lightWidth, 2);
@@ -475,6 +471,46 @@ test('Mermaid groups contain their members, keep nested boundaries and group lin
       }) && (!group.parentId || within(box(group.id), box(group.parentId)))) && !(app.x < outer.x + outer.w && app.x + app.w > outer.x && app.y < outer.y + outer.h && app.y + app.h > outer.y);
     }, graph.groups);
     assert.equal(contained, true);
+    await bypassesCards(f.frame.locator('.graph-viewer'));
+  }
+  assert.deepEqual(f.errors, []);
+});
+
+test('uneven nested groups pack disconnected nodes without oversized gaps or long detours', {skip: !packagePath, timeout: 60000}, async t => {
+  const graph = {schemaVersion: 1, graphId: 'compact-groups', title: '크기가 다른 그룹과 외부 연결', nodes: [], edges: [], groups: [{id: 'app', label: '애플리케이션', nodeIds: []}]};
+  for (const [id, count] of [['views', 12], ['processors', 9], ['device', 4], ['core', 2], ['entry', 1], ['standalone', 3]]) {
+    const nodes = Array.from({length: count}, (_, i) => ({id: id + i, type: '작업', label: `${id} ${i}`}));
+    graph.nodes.push(...nodes);
+    graph.groups.push({id, label: id, nodeIds: nodes.map(node => node.id), ...(['views', 'processors'].includes(id) ? {parentId: 'app'} : {})});
+  }
+  const edge = (source, target) => graph.edges.push({id: `e${graph.edges.length}`, source, target, label: '호출'});
+  edge('entry0', 'views0');
+  for (let i = 0; i < 12; i++) edge(`views${i}`, `processors${i % 9}`);
+  for (let i = 0; i < 9; i++) edge(`processors${i}`, `core${i % 2}`);
+  for (const [from, to] of [['processors3', 'device0'], ['device0', 'device1'], ['device1', 'device2'], ['device2', 'device3'], ['device3', 'processors3']]) edge(from, to);
+  const f = await browserFixture(t, {graph, entry: path.join('plugins', 'graph-viewer', 'start.ps1'), launcher: true});
+  for (const mode of ['layered', 'tree', 'radial', 'network']) {
+    await f.frame.getByRole('combobox', {name: '배치 방식'}).selectOption(mode);
+    if (mode === 'layered' || mode === 'tree') await f.frame.getByRole('combobox', {name: '배치 방향'}).selectOption(mode === 'layered' ? 'vertical' : 'horizontal');
+    await storedUntil(f.client, item => item.state.views.large.layout === mode && (mode !== 'layered' || item.state.views.large.direction === 'vertical'));
+    const geometry = await f.frame.locator('svg.graph').evaluate(svg => {
+      const root = svg.getRootNode(), box = root.querySelector('.world').getBBox();
+      const cards = [...root.querySelectorAll('.node')].map(node => {const m = node.transform.baseVal[0].matrix, rect = node.querySelector('rect'); return {x: m.e, y: m.f, w: rect.width.baseVal.value, h: rect.height.baseVal.value};});
+      const group = root.querySelector('.group-box[data-id="views"] .group-border');
+      return {
+        area: box.width * box.height, cardArea: cards[0].w * cards[0].h, diagonal: Math.hypot(cards[0].w, cards[0].h),
+        aspect: group.width.baseVal.value / group.height.baseVal.value,
+        nodeCount: cards.length, edgeCount: root.querySelectorAll('.connection').length,
+        routeLength: [...root.querySelectorAll('.edge')].reduce((sum, edge) => sum + edge.getTotalLength(), 0),
+        overlap: cards.some((a, i) => cards.slice(i + 1).some(b => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y)),
+      };
+    });
+    assert.equal(geometry.nodeCount, graph.nodes.length);
+    assert.equal(geometry.edgeCount, graph.edges.length);
+    assert.equal(geometry.overlap, false);
+    assert.ok(geometry.aspect >= 1 / 3 && geometry.aspect <= 3, `${mode}: independent members must not form one long strip`);
+    assert.ok(geometry.area < geometry.cardArea * graph.nodes.length * 6, `${mode}: oversized groups must not spread every row and column`);
+    assert.ok(geometry.routeLength < geometry.diagonal * graph.edges.length * 4, `${mode}: related groups must stay close enough to avoid long detours`);
     await bypassesCards(f.frame.locator('.graph-viewer'));
   }
   assert.deepEqual(f.errors, []);
