@@ -8,6 +8,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import GraphModel from '../src/model.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const CLI = path.join(ROOT, 'bin', 'graph.mjs');
@@ -15,6 +16,21 @@ const execFileAsync = promisify(execFile);
 
 const THREAD_A = '11111111-1111-4111-8111-111111111111';
 const THREAD_B = '22222222-2222-4222-8222-222222222222';
+
+test('layered group compaction keeps forward links between different member positions', () => {
+  const graph = {schemaVersion: 1, graphId: 'group-flow', title: '서로 다른 내부 항목의 연결', nodes: [], groups: [], edges: []};
+  for (const [id, count] of [['a', 2], ['b', 9], ['c', 4], ['d', 6], ['e', 5]]) {
+    const nodeIds = Array.from({length: count}, (_, i) => `${id}${i}`);
+    graph.groups.push({id, label: id, nodeIds});
+    graph.nodes.push(...nodeIds.map(id => ({id, type: '작업', label: id})));
+  }
+  for (const [source, target] of [['d3', 'd4'], ['e2', 'e3'], ['a0', 'b4'], ['a0', 'e0'], ['b7', 'c3'], ['c2', 'd3'], ['d2', 'e2']]) graph.edges.push({id: `${source}-${target}`, source, target});
+  for (const direction of ['horizontal', 'vertical']) {
+    const result = GraphModel.layoutGraph(graph, false, {layout: 'layered', direction});
+    const nodes = new Map(result.nodes.map(node => [node.id, node])), main = direction === 'horizontal' ? 'x' : 'y';
+    for (const edge of graph.edges) assert.ok(nodes.get(edge.target)[main] > nodes.get(edge.source)[main], `${direction}: ${edge.id} must keep its forward direction`);
+  }
+});
 
 function researchGraph(title = '연구 기록') {
   return {

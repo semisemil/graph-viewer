@@ -673,6 +673,48 @@ test('uneven nested groups pack disconnected nodes without oversized gaps or lon
   assert.deepEqual(f.errors, []);
 });
 
+test('branches from early members stay near their attachment instead of beyond the entire group', {skip: !packagePath, timeout: 60000}, async t => {
+  const graph = {schemaVersion: 1, graphId: 'attached-branches', title: '초기화 체인과 서비스 분기', nodes: [], edges: [], groups: []};
+  for (const [id, count] of [['startup', 9], ['common', 3], ['dda', 1], ['vrs', 1], ['window', 2]]) {
+    const members = Array.from({length: count}, (_, i) => ({id: `${id}${i}`, type: '서비스', label: `${id} ${i}`}));
+    graph.nodes.push(...members);
+    graph.groups.push({id, label: id, nodeIds: members.map(node => node.id)});
+    for (let i = 0; i < count - 1; i++) graph.edges.push({id: `${id}-step${i}`, source: `${id}${i}`, target: `${id}${i + 1}`});
+  }
+  for (const [source, target] of [['startup0', 'common0'], ['startup2', 'dda0'], ['startup3', 'vrs0'], ['startup8', 'window0']]) graph.edges.push({id: `${source}-${target}`, source, target});
+  const f = await browserFixture(t, {graph, entry: path.join('plugins', 'graph-viewer', 'start.ps1'), launcher: true});
+  for (const mode of ['layered', 'tree']) for (const direction of ['horizontal', 'vertical']) {
+    await f.frame.getByRole('combobox', {name: '배치 방식'}).selectOption(mode);
+    await f.frame.getByRole('combobox', {name: '배치 방향'}).selectOption(direction);
+    await storedUntil(f.client, item => item.state.views.large.layout === mode && item.state.views.large.direction === direction);
+    const geometry = await f.frame.locator('svg.graph').evaluate(svg => {
+      const root = svg.getRootNode();
+      const nodes = [...root.querySelectorAll('.node')].map(node => {
+        const m = node.transform.baseVal[0].matrix, rect = node.querySelector('rect');
+        return {id: node.dataset.id, x: m.e, y: m.f, w: rect.width.baseVal.value, h: rect.height.baseVal.value};
+      });
+      const groups = [...root.querySelectorAll('.group-box')].map(group => {
+        const rect = group.querySelector('.group-border');
+        return {id: group.dataset.id, x: rect.x.baseVal.value, y: rect.y.baseVal.value, w: rect.width.baseVal.value, h: rect.height.baseVal.value};
+      });
+      return {nodes, groups, edges: root.querySelectorAll('.connection').length, miniNodes: root.querySelectorAll('.mini-node').length};
+    });
+    const {nodes, groups} = geometry, source = nodes.find(node => node.id === 'startup0'), target = nodes.find(node => node.id === 'common0');
+    assert.ok(Math.hypot(target.x - source.x, target.y - source.y) < 3 * Math.hypot(source.w, source.h), `${mode}/${direction}: the early branch must stay within three card diagonals of its member`);
+    const main = direction === 'horizontal' ? 'x' : 'y', cross = direction === 'horizontal' ? 'y' : 'x';
+    const startup = groups.find(group => group.id === 'startup'), common = groups.find(group => group.id === 'common');
+    assert.ok(common[main] < startup[main] + startup[direction === 'horizontal' ? 'w' : 'h']);
+    for (let i = 1; i < 9; i++) {
+      const previous = nodes.find(node => node.id === `startup${i - 1}`), node = nodes.find(node => node.id === `startup${i}`);
+      assert.ok(node[main] > previous[main]); assert.equal(node[cross], previous[cross]);
+    }
+    assert.equal(groups.some((a, i) => groups.slice(i + 1).some(b => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y)), false);
+    assert.equal(nodes.length, graph.nodes.length); assert.equal(geometry.edges, graph.edges.length); assert.equal(geometry.miniNodes, graph.nodes.length);
+    await bypassesCards(f.frame.locator('.graph-viewer'));
+  }
+  assert.deepEqual(f.errors, []);
+});
+
 test('node details use a scrollable custom tooltip that supports hover, keyboard and narrow screens', {skip: !packagePath, timeout: 30000}, async t => {
   const f = await browserFixture(t);
   f.page.setDefaultTimeout(7000);
