@@ -38,6 +38,10 @@
       .search-clear{position:absolute;right:4px;top:4px;width:26px;min-width:26px;height:26px;padding:4px;border-radius:6px;color:var(--muted)}.search-clear:hover{color:var(--text)}
       .theme-field{position:relative;flex:none;width:112px;margin-left:auto}.theme-field>.icon{position:absolute;right:9px;top:10px;color:var(--muted)}
       .layout-controls{display:flex;align-items:center;gap:12px;flex:none}.layout-field{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;white-space:nowrap}
+      .group-actions{display:flex;gap:2px;padding-left:8px;border-left:1px solid var(--line)}.group-actions[hidden]{display:none}
+      .copy-menu{position:fixed;inset:auto;margin:0;width:300px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);overflow:auto;padding:6px;border:1px solid var(--control-border);border-radius:12px;background:var(--surface);color:var(--text);box-shadow:0 12px 32px var(--tooltip-shadow);font:13px system-ui,sans-serif}
+      .copy-menu h3{margin:8px 10px 6px;font-size:12px;color:var(--muted);font-weight:600}.copy-menu button{width:100%;height:auto;min-height:54px;display:flex;align-items:flex-start;flex-direction:column;gap:4px;padding:10px;text-align:left}.copy-menu strong{font-size:13px;font-weight:600}.copy-menu span{font-size:11px;color:var(--muted);line-height:1.5}
+      .copy-fallback{display:block;width:100%;height:140px;resize:vertical;margin-top:6px;padding:10px;border:1px solid var(--control-border);border-radius:8px;background:var(--canvas);color:var(--text);font:11px/1.5 monospace}.copy-fallback[hidden]{display:none}.copy-fallback:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
       .select-wrap{position:relative;display:block;width:112px;color:var(--text)}.direction-field .select-wrap{width:80px}.select-wrap>.icon{position:absolute;right:9px;top:calc(50% - 8px);color:var(--muted)}
       select{appearance:none;width:100%;height:36px;padding:0 30px 0 11px;background:var(--control);border:1px solid var(--control-border);border-radius:9px;cursor:pointer}select:hover{background:var(--control-hover)}
       select:disabled{opacity:.5;cursor:default;background:var(--control)}
@@ -80,12 +84,14 @@
       .motion-off .edge-flow{display:none!important;animation:none!important}
       @media(prefers-reduced-motion:reduce){.edge-flow.related{display:none;animation:none}.node,.node>rect:first-child,.edge,.connection,button,.search-field{transition:none}.node-tooltip{animation:none}}
       @media(max-width:380px){header{padding:8px}.header-controls{gap:6px}.theme-field{width:100px}}
-      @media(max-width:680px){.header-controls{flex-wrap:wrap}.layout-controls{order:3;flex-basis:100%}}
+      @media(max-width:680px){.header-controls{flex-wrap:wrap}.layout-controls{order:3;flex-basis:100%;flex-wrap:wrap;gap:8px}.group-actions{margin-left:auto;padding-left:6px}}
       ${compact ? 'header{padding:8px}.header-controls{gap:6px}.search-field,select{height:32px;font-size:12px}.search-clear{top:2px;right:2px}.theme-field{width:100px}.theme-field>.icon{top:8px}.legend{padding:6px 10px;gap:8px;max-height:56px}.tooltip-scroll{padding:13px 14px}.tooltip-title{font-size:15px}.tools{bottom:7px;left:7px}.tools button{width:28px;height:28px;min-width:28px}.zoom{height:28px;min-width:42px}.minimap{width:60px;height:116px;right:7px;bottom:7px;opacity:.3;pointer-events:all;transition:opacity 160ms ease}.minimap:hover,.minimap:focus-visible{opacity:1}.minimap:focus-visible{outline:2px solid var(--focus);outline-offset:2px}@media(prefers-reduced-motion:reduce){.minimap{transition:none}}' : ''}
     </style><div class="shell"><header><div class="header-controls">
       <div class="search-field">${icon('<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/>')}<input aria-label="노드 검색" placeholder="노드 검색"><button class="search-clear" type="button" aria-label="검색어 지우기" title="검색어 지우기" hidden>${icon('<path d="m8 8 8 8m0-8-8 8"/>')}</button></div>
-      <div class="layout-controls"><label class="layout-field">배치<span class="select-wrap"><select aria-label="배치 방식"><option value="layered">계층형</option><option value="tree">트리형</option><option value="radial">방사형</option><option value="network">네트워크형</option></select>${icon('<path d="m8 10 4 4 4-4"/>')}</span></label><label class="layout-field direction-field">방향<span class="select-wrap"><select aria-label="배치 방향"><option value="horizontal">가로</option><option value="vertical">세로</option></select>${icon('<path d="m8 10 4 4 4-4"/>')}</span></label></div>
+      <div class="layout-controls"><label class="layout-field">배치<span class="select-wrap"><select aria-label="배치 방식"><option value="layered">계층형</option><option value="tree">트리형</option><option value="radial">방사형</option><option value="network">네트워크형</option></select>${icon('<path d="m8 10 4 4 4-4"/>')}</span></label><label class="layout-field direction-field">방향<span class="select-wrap"><select aria-label="배치 방향"><option value="horizontal">가로</option><option value="vertical">세로</option></select>${icon('<path d="m8 10 4 4 4-4"/>')}</span></label><div class="group-actions" role="group" aria-label="전체 그룹 표시" hidden><button type="button" class="collapse-all" aria-label="전체 그룹 접기" title="전체 그룹 접기">${icon('<path d="M4 3h16v18H4zM9 7l3 3 3-3M9 17l3-3 3 3"/>')}</button><button type="button" class="expand-all" aria-label="전체 그룹 펼치기" title="전체 그룹 펼치기">${icon('<path d="M4 3h16v18H4zM9 9l3-3 3 3M9 15l3 3 3-3"/>')}</button></div></div>
       <div class="theme-field"><select aria-label="화면 테마"><option value="auto">자동 테마</option><option value="light">라이트</option><option value="dark">다크</option></select>${icon('<path d="m8 10 4 4 4-4"/>')}</div>
+      <button class="copy-graph" type="button" aria-label="그래프 JSON 복사" title="그래프 JSON 복사" aria-haspopup="dialog" popovertarget="${id}-copy">${icon('<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>')}</button>
+      <div class="copy-menu" id="${id}-copy" popover="auto" role="dialog" aria-label="그래프 JSON 복사 옵션"><h3>그래프 JSON 복사</h3><button type="button" data-content="include"><strong>내용 포함하여 복사</strong><span>제목, 설명, 상태와 출처를 모두 유지</span></button><button type="button" data-content="empty"><strong>내용 비우고 복사</strong><span>연결 구조 유지, 텍스트와 식별자 대체</span></button><textarea class="copy-fallback" aria-label="복사할 그래프 JSON" readonly hidden></textarea></div>
       <button class="export-image" type="button" aria-label="그래프 이미지 저장" title="전체 그래프를 PNG로 저장">${icon('<path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/>')}</button>
     </div></header><div class="legend" aria-label="노드 유형"></div><div class="canvas"><svg class="graph" role="group"><defs></defs><g class="world"></g></svg><div class="empty" hidden>표시할 노드가 없습니다.</div>
       <div class="tools" role="toolbar" aria-label="그래프 보기"><button type="button" aria-label="확대" title="확대">${icon('<path d="M12 5v14M5 12h14"/>')}</button><button type="button" aria-label="축소" title="축소">${icon('<path d="M5 12h14"/>')}</button><button type="button" aria-label="전체 맞춤" title="전체 맞춤">${icon('<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>')}</button><button class="zoom" type="button" aria-label="100%로 보기" title="100%로 보기"></button></div>
@@ -105,6 +111,13 @@
     const directionSelect = shadow.querySelector('[aria-label="배치 방향"]');
     const exportButton = shadow.querySelector('.export-image');
     const exportStatus = shadow.querySelector('.export-status');
+    const groupActions = shadow.querySelector('.group-actions');
+    const collapseAll = shadow.querySelector('.collapse-all');
+    const expandAll = shadow.querySelector('.expand-all');
+    const copyButton = shadow.querySelector('.copy-graph');
+    const copyMenu = shadow.querySelector('.copy-menu');
+    const copyFallback = shadow.querySelector('.copy-fallback');
+    const copyChoices = [...copyMenu.querySelectorAll('button')];
     const measure = document.createElement('canvas').getContext('2d');
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
     const colorScheme = window.matchMedia('(prefers-color-scheme: dark)');
@@ -122,6 +135,7 @@
     let flowSegments = [], activeFlow = [];
     let flow, surfaceWidth = 0, surfaceHeight = 0;
     let exporting = false, exportTimer = 0;
+    let copying = false;
 
     function applyTheme() {
       const automatic = ['light', 'dark'].includes(hostTheme) ? hostTheme : colorScheme.matches ? 'dark' : 'light';
@@ -498,28 +512,73 @@
       }
     }
     exportButton.addEventListener('click', saveImage);
+    function positionCopyMenu() {
+      if (!copyMenu.matches(':popover-open')) return;
+      const bounds = copyButton.getBoundingClientRect();
+      copyMenu.style.left = `${Math.max(12, Math.min(bounds.right - copyMenu.offsetWidth, window.innerWidth - copyMenu.offsetWidth - 12))}px`;
+      copyMenu.style.top = `${Math.max(12, Math.min(bounds.bottom + 8, window.innerHeight - copyMenu.offsetHeight - 12))}px`;
+    }
+    copyMenu.addEventListener('toggle', event => {
+      if (event.newState === 'open') {hideTooltip(); hovered = focused = null; positionCopyMenu(); copyChoices[0].focus();}
+      else {if (!copyFallback.hidden) exportStatus.hidden = true; copyFallback.hidden = true; copyFallback.value = '';}
+    });
+    async function copyGraph(includeContent) {
+      if (copying || destroyed) return;
+      copying = true;
+      for (const button of copyChoices) {button.disabled = true; button.setAttribute('aria-busy', 'true');}
+      window.clearTimeout(exportTimer);
+      try {
+        const value = model.exportGraph(graph, {includeContent});
+        let text = JSON.stringify(value, null, 2);
+        if (new TextEncoder().encode(text).length > model.limits.bytes) text = JSON.stringify(value);
+        let written = false;
+        try {if (window.navigator.clipboard?.writeText) {await window.navigator.clipboard.writeText(text); written = true;}} catch {}
+        if (destroyed) return;
+        if (!written) {
+          copyFallback.value = text; copyFallback.hidden = false;
+          positionCopyMenu(); copyFallback.focus(); copyFallback.select();
+          try {written = document.execCommand('copy');} catch {}
+        }
+        exportStatus.hidden = false;
+        if (written) {
+          copyFallback.hidden = true; copyMenu.hidePopover(); copyButton.focus();
+          exportStatus.textContent = '그래프 JSON을 복사했습니다.';
+          exportTimer = window.setTimeout(() => {exportStatus.hidden = true;}, 4000);
+        } else exportStatus.textContent = '자동 복사를 사용할 수 없습니다. 선택된 JSON을 Ctrl+C로 복사하세요.';
+      } catch (error) {
+        if (!destroyed) {exportStatus.hidden = false; exportStatus.textContent = `그래프를 복사하지 못했습니다. ${error.message}`;}
+      } finally {
+        copying = false;
+        if (!destroyed) for (const button of copyChoices) {button.disabled = false; button.removeAttribute('aria-busy');}
+      }
+    }
+    for (const button of copyChoices) button.addEventListener('click', () => copyGraph(button.dataset.content === 'include'));
     function groupToggle(data, x, y, collapsed) {
       const button = element(document, 'g', {class: 'group-toggle', 'data-id': data.id, role: 'button', tabindex: 0, 'aria-label': `${data.label} ${collapsed ? '펼치기' : '접기'}`, 'aria-expanded': String(!collapsed), transform: `translate(${x} ${y})`});
       button.append(element(document, 'rect', {width: 28, height: 28, rx: 7}), element(document, 'path', {d: collapsed ? 'M11 8 L17 14 L11 20' : 'M8 11 L14 17 L20 11'}));
-      const toggle = () => changeGroup(data.id, !collapsed);
+      const toggle = () => changeGroups(data.id, !collapsed);
       button.addEventListener('click', event => {event.stopPropagation(); toggle();});
       button.addEventListener('keydown', event => {if (event.key === 'Enter' || event.key === ' ') {event.preventDefault(); event.stopPropagation(); toggle();}});
       return button;
     }
-    function changeGroup(groupId, collapsed) {
+    function changeGroups(groupId, collapsed) {
       stopAnimation(); hideTooltip(); hovered = focused = null; drag = null;
       interaction(true);
-      const before = viewMap.get(groupId) || layout.groups.find(group => group.id === groupId);
-      const ids = new Set(collapsedGroupIds);
-      if (collapsed) ids.add(groupId); else ids.delete(groupId);
-      collapsedGroupIds = [...ids];
-      renderGraph();
-      const after = viewMap.get(groupId) || layout.groups.find(group => group.id === groupId);
+      const before = groupId && (viewMap.get(groupId) || layout.groups.find(group => group.id === groupId));
+      if (groupId) {
+        const ids = new Set(collapsedGroupIds);
+        if (collapsed) ids.add(groupId); else ids.delete(groupId);
+        collapsedGroupIds = [...ids];
+      } else collapsedGroupIds = collapsed ? (graph.groups || []).map(group => group.id) : [];
+      renderGraph(!groupId);
+      const after = groupId && (viewMap.get(groupId) || layout.groups.find(group => group.id === groupId));
       if (camera && before && after) {camera.x += after.x - before.x; camera.y += after.y - before.y; transform();}
-      [...shadow.querySelectorAll('.group-toggle')].find(button => button.dataset.id === groupId)?.focus();
-      emit({type: 'setGroupCollapsed', groupId, collapsed, ...(camera ? {camera: cameraCopy()} : {})});
+      if (groupId) [...shadow.querySelectorAll('.group-toggle')].find(button => button.dataset.id === groupId)?.focus();
+      emit({...(groupId ? {type: 'setGroupCollapsed', groupId} : {type: 'setAllGroupsCollapsed'}), collapsed, ...(camera ? {camera: cameraCopy()} : {})});
       interaction(false);
     }
+    collapseAll.addEventListener('click', () => changeGroups(null, true));
+    expandAll.addEventListener('click', () => changeGroups(null, false));
     function renderGraph(fitAll = false) {
       const presentation = model.collapseGroups(graph, collapsedGroupIds);
       visibleGraph = presentation.graph; representatives = presentation.representatives;
@@ -529,6 +588,9 @@
       svg.setAttribute('aria-label', graph.title);
       shadow.querySelector('.empty').hidden = visibleGraph.nodes.length !== 0 || layout.groups.length !== 0;
       exportButton.disabled = exporting || !visibleGraph.nodes.length && !layout.groups.length;
+      groupActions.hidden = !graph.groups?.length;
+      collapseAll.disabled = !graph.groups?.length || collapsedGroupIds.length === graph.groups.length;
+      expandAll.disabled = collapsedGroupIds.length === 0;
       const legend = shadow.querySelector('.legend');
       legend.replaceChildren();
       colors = new Map();
@@ -735,6 +797,7 @@
     const resize = new window.ResizeObserver(([entry]) => {
       surfaceWidth = entry.contentRect.width; surfaceHeight = entry.contentRect.height;
       if (camera) transform(); else fit(false, true);
+      positionCopyMenu();
     });
     resize.observe(svg);
     return {
@@ -747,6 +810,7 @@
         destroyed = true;
         stopAnimation();
         window.clearTimeout(exportTimer);
+        copyFallback.value = '';
         hideTooltip();
         resize.disconnect();
         document.removeEventListener('visibilitychange', visibilityChanged);
