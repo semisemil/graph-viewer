@@ -646,29 +646,67 @@ test('uneven nested groups pack disconnected nodes without oversized gaps or lon
   for (let i = 0; i < 9; i++) edge(`processors${i}`, `core${i % 2}`);
   for (const [from, to] of [['processors3', 'device0'], ['device0', 'device1'], ['device1', 'device2'], ['device2', 'device3'], ['device3', 'processors3']]) edge(from, to);
   const f = await browserFixture(t, {graph, entry: path.join('plugins', 'graph-viewer', 'start.ps1'), launcher: true});
+  async function geometry() {
+    return f.frame.locator('svg.graph').evaluate((svg, parents) => {
+      const root = svg.getRootNode(), box = root.querySelector('.world').getBBox();
+      const nodeElements = [...root.querySelectorAll('.node')];
+      const cards = nodeElements.map(node => {const m = node.transform.baseVal[0].matrix, rect = node.querySelector('rect'); return {id: node.dataset.id, x: m.e, y: m.f, w: rect.width.baseVal.value, h: rect.height.baseVal.value};});
+      const groups = [...root.querySelectorAll('.group-box')].map(group => {const rect = group.querySelector('.group-border'); return {id: group.dataset.id, x: rect.x.baseVal.value, y: rect.y.baseVal.value, w: rect.width.baseVal.value, h: rect.height.baseVal.value};});
+      const parentOf = new Map(parents), ancestor = (a, b) => {while (parentOf.has(b)) {b = parentOf.get(b); if (a === b) return true;} return false;};
+      const overlaps = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+      const edges = [...root.querySelectorAll('.connection')], mini = [...root.querySelectorAll('.mini-connection')];
+      const ids = new Set([...cards, ...groups].map(item => item.id)), bounds = svg.getBoundingClientRect();
+      const views = groups.find(group => group.id === 'views');
+      return {
+        cards, area: box.width * box.height, cardArea: cards[0].w * cards[0].h, diagonal: Math.hypot(cards[0].w, cards[0].h), aspect: views ? views.w / views.h : null,
+        nodeCount: cards.length, edgeCount: edges.length, routeLength: [...root.querySelectorAll('.edge')].reduce((sum, edge) => sum + edge.getTotalLength(), 0),
+        overlap: cards.some((a, i) => cards.slice(i + 1).some(b => overlaps(a, b))),
+        groupOverlap: groups.some((a, i) => groups.slice(i + 1).some(b => !ancestor(a.id, b.id) && !ancestor(b.id, a.id) && overlaps(a, b))),
+        endpoints: edges.every(edge => ids.has(edge.dataset.from) && ids.has(edge.dataset.to)),
+        minimap: JSON.stringify(edges.map(edge => [edge.dataset.id, edge.querySelector('path').getAttribute('d')])) === JSON.stringify(mini.map(edge => [edge.dataset.id, edge.querySelector('path').getAttribute('d')])) && root.querySelectorAll('.mini-node').length === cards.length,
+        onScreen: nodeElements.some(node => {const card = node.getBoundingClientRect(); return card.left < bounds.right && card.right > bounds.left && card.top < bounds.bottom && card.bottom > bounds.top;}),
+      };
+    }, graph.groups.filter(group => group.parentId).map(group => [group.id, group.parentId]));
+  }
+  async function check(nodes, edges, maxArea = 6) {
+    const result = await geometry();
+    assert.equal(result.nodeCount, nodes); assert.equal(result.edgeCount, edges);
+    assert.equal(result.overlap, false); assert.equal(result.groupOverlap, false);
+    assert.equal(result.endpoints, true); assert.equal(result.minimap, true); assert.equal(result.onScreen, true);
+    assert.ok(result.area < result.cardArea * nodes * maxArea, 'group changes must not leave excessive empty space');
+    await bypassesCards(f.frame.locator('.graph-viewer'));
+    return result;
+  }
   for (const mode of ['layered', 'tree', 'radial', 'network']) {
     await f.frame.getByRole('combobox', {name: '배치 방식'}).selectOption(mode);
     if (mode === 'layered' || mode === 'tree') await f.frame.getByRole('combobox', {name: '배치 방향'}).selectOption(mode === 'layered' ? 'vertical' : 'horizontal');
     await storedUntil(f.client, item => item.state.views.large.layout === mode && (mode !== 'layered' || item.state.views.large.direction === 'vertical'));
-    const geometry = await f.frame.locator('svg.graph').evaluate(svg => {
-      const root = svg.getRootNode(), box = root.querySelector('.world').getBBox();
-      const cards = [...root.querySelectorAll('.node')].map(node => {const m = node.transform.baseVal[0].matrix, rect = node.querySelector('rect'); return {x: m.e, y: m.f, w: rect.width.baseVal.value, h: rect.height.baseVal.value};});
-      const group = root.querySelector('.group-box[data-id="views"] .group-border');
-      return {
-        area: box.width * box.height, cardArea: cards[0].w * cards[0].h, diagonal: Math.hypot(cards[0].w, cards[0].h),
-        aspect: group.width.baseVal.value / group.height.baseVal.value,
-        nodeCount: cards.length, edgeCount: root.querySelectorAll('.connection').length,
-        routeLength: [...root.querySelectorAll('.edge')].reduce((sum, edge) => sum + edge.getTotalLength(), 0),
-        overlap: cards.some((a, i) => cards.slice(i + 1).some(b => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y)),
-      };
-    });
-    assert.equal(geometry.nodeCount, graph.nodes.length);
-    assert.equal(geometry.edgeCount, graph.edges.length);
-    assert.equal(geometry.overlap, false);
-    assert.ok(geometry.aspect >= 1 / 3 && geometry.aspect <= 3, `${mode}: independent members must not form one long strip`);
-    assert.ok(geometry.area < geometry.cardArea * graph.nodes.length * 6, `${mode}: oversized groups must not spread every row and column`);
-    assert.ok(geometry.routeLength < geometry.diagonal * graph.edges.length * 4, `${mode}: related groups must stay close enough to avoid long detours`);
-    await bypassesCards(f.frame.locator('.graph-viewer'));
+    const original = await check(graph.nodes.length, graph.edges.length);
+    assert.ok(original.aspect >= 1 / 3 && original.aspect <= 3, `${mode}: independent members must not form one long strip`);
+    assert.ok(original.routeLength < original.diagonal * graph.edges.length * 4, `${mode}: related groups must stay close enough to avoid long detours`);
+    if (mode === 'radial' || mode === 'network') {
+      const toggle = (name, collapsed) => f.frame.getByRole('button', {name: `${name} ${collapsed ? '펼치기' : '접기'}`, exact: true}).dispatchEvent('click');
+      await toggle('views', false);
+      await storedUntil(f.client, item => item.state.views.large.collapsedGroupIds.includes('views'));
+      await check(20, 27, 8);
+      await toggle('애플리케이션', false);
+      await storedUntil(f.client, item => item.state.views.large.collapsedGroupIds.includes('app'));
+      await check(11, 15, 8);
+      await toggle('애플리케이션', true);
+      await storedUntil(f.client, item => !item.state.views.large.collapsedGroupIds.includes('app'));
+      await check(20, 27, 8);
+      await toggle('views', true);
+      await storedUntil(f.client, item => item.state.views.large.collapsedGroupIds.length === 0);
+      assert.deepEqual((await check(31, 27)).cards, original.cards);
+      for (let cycle = 0; cycle < 2; cycle++) {
+        await f.frame.getByRole('button', {name: '전체 그룹 접기', exact: true}).click();
+        await storedUntil(f.client, item => item.state.views.large.collapsedGroupIds.length === 7);
+        await check(5, 12);
+        await f.frame.getByRole('button', {name: '전체 그룹 펼치기', exact: true}).click();
+        await storedUntil(f.client, item => item.state.views.large.collapsedGroupIds.length === 0);
+        assert.deepEqual((await check(31, 27)).cards, original.cards);
+      }
+    }
   }
   assert.deepEqual(f.errors, []);
 });
@@ -682,11 +720,13 @@ test('branches from early members stay near their attachment instead of beyond t
     for (let i = 0; i < count - 1; i++) graph.edges.push({id: `${id}-step${i}`, source: `${id}${i}`, target: `${id}${i + 1}`});
   }
   for (const [source, target] of [['startup0', 'common0'], ['startup2', 'dda0'], ['startup3', 'vrs0'], ['startup8', 'window0']]) graph.edges.push({id: `${source}-${target}`, source, target});
+  const owners = new Map(graph.groups.flatMap(group => group.nodeIds.map(id => [id, group.id])));
+  const externalEdges = graph.edges.filter(edge => owners.get(edge.source) !== owners.get(edge.target));
   const f = await browserFixture(t, {graph, entry: path.join('plugins', 'graph-viewer', 'start.ps1'), launcher: true});
-  for (const mode of ['layered', 'tree']) for (const direction of ['horizontal', 'vertical']) {
+  for (const mode of ['layered', 'tree', 'radial', 'network']) for (const direction of mode === 'layered' || mode === 'tree' ? ['horizontal', 'vertical'] : [null]) {
     await f.frame.getByRole('combobox', {name: '배치 방식'}).selectOption(mode);
-    await f.frame.getByRole('combobox', {name: '배치 방향'}).selectOption(direction);
-    await storedUntil(f.client, item => item.state.views.large.layout === mode && item.state.views.large.direction === direction);
+    if (direction) await f.frame.getByRole('combobox', {name: '배치 방향'}).selectOption(direction);
+    await storedUntil(f.client, item => item.state.views.large.layout === mode && (!direction || item.state.views.large.direction === direction));
     const geometry = await f.frame.locator('svg.graph').evaluate(svg => {
       const root = svg.getRootNode();
       const nodes = [...root.querySelectorAll('.node')].map(node => {
@@ -700,13 +740,23 @@ test('branches from early members stay near their attachment instead of beyond t
       return {nodes, groups, edges: root.querySelectorAll('.connection').length, miniNodes: root.querySelectorAll('.mini-node').length};
     });
     const {nodes, groups} = geometry, source = nodes.find(node => node.id === 'startup0'), target = nodes.find(node => node.id === 'common0');
-    assert.ok(Math.hypot(target.x - source.x, target.y - source.y) < 3 * Math.hypot(source.w, source.h), `${mode}/${direction}: the early branch must stay within three card diagonals of its member`);
-    const main = direction === 'horizontal' ? 'x' : 'y', cross = direction === 'horizontal' ? 'y' : 'x';
-    const startup = groups.find(group => group.id === 'startup'), common = groups.find(group => group.id === 'common');
-    assert.ok(common[main] < startup[main] + startup[direction === 'horizontal' ? 'w' : 'h']);
-    for (let i = 1; i < 9; i++) {
-      const previous = nodes.find(node => node.id === `startup${i - 1}`), node = nodes.find(node => node.id === `startup${i}`);
-      assert.ok(node[main] > previous[main]); assert.equal(node[cross], previous[cross]);
+    if (direction) {
+      assert.ok(Math.hypot(target.x - source.x, target.y - source.y) < 3 * Math.hypot(source.w, source.h), `${mode}/${direction}: the early branch must stay within three card diagonals of its member`);
+      const main = direction === 'horizontal' ? 'x' : 'y', cross = direction === 'horizontal' ? 'y' : 'x';
+      const startup = groups.find(group => group.id === 'startup'), common = groups.find(group => group.id === 'common');
+      assert.ok(common[main] < startup[main] + startup[direction === 'horizontal' ? 'w' : 'h']);
+      for (let i = 1; i < 9; i++) {
+        const previous = nodes.find(node => node.id === `startup${i - 1}`), node = nodes.find(node => node.id === `startup${i}`);
+        assert.ok(node[main] > previous[main]); assert.equal(node[cross], previous[cross]);
+      }
+    } else {
+      const lengths = externalEdges.map(edge => {
+        const a = nodes.find(node => node.id === edge.source), b = nodes.find(node => node.id === edge.target);
+        const length = Math.hypot(a.x - b.x, a.y - b.y);
+        assert.ok(length < 5 * Math.hypot(a.w, a.h), `${mode}/${edge.id}: connected groups must stay near the member attachment`);
+        return length;
+      });
+      assert.ok(lengths.reduce((sum, length) => sum + length, 0) / lengths.length < source.w * 4, `${mode}: average attachment distance must stay within four card widths`);
     }
     assert.equal(groups.some((a, i) => groups.slice(i + 1).some(b => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y)), false);
     assert.equal(nodes.length, graph.nodes.length); assert.equal(geometry.edges, graph.edges.length); assert.equal(geometry.miniNodes, graph.nodes.length);

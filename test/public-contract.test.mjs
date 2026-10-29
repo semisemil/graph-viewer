@@ -17,6 +17,17 @@ const execFileAsync = promisify(execFile);
 const THREAD_A = '11111111-1111-4111-8111-111111111111';
 const THREAD_B = '22222222-2222-4222-8222-222222222222';
 
+test('a single radial branch uses card-sized gaps between successive rings', () => {
+  const nodes = Array.from({length: 9}, (_, i) => ({id: `n${i}`, type: '작업', label: `단계 ${i}`}));
+  const graph = {schemaVersion: 1, graphId: 'radial-chain', title: '단일 분기', nodes, edges: nodes.slice(1).map((node, i) => ({id: `e${i}`, source: `n${i}`, target: node.id}))};
+  const result = GraphModel.layoutGraph(graph, false, {layout: 'radial'});
+  for (let i = 1; i < result.nodes.length; i++) {
+    const a = result.nodes[i - 1], b = result.nodes[i];
+    assert.equal(a.x, b.x);
+    assert.ok(Math.abs(a.y - b.y) >= result.cardHeight && Math.abs(a.y - b.y) <= result.cardHeight * 2);
+  }
+});
+
 test('layered group compaction keeps forward links between different member positions', () => {
   const graph = {schemaVersion: 1, graphId: 'group-flow', title: '서로 다른 내부 항목의 연결', nodes: [], groups: [], edges: []};
   for (const [id, count] of [['a', 2], ['b', 9], ['c', 4], ['d', 6], ['e', 5]]) {

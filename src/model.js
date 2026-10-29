@@ -175,6 +175,45 @@
     return {graph: {...graph, nodes, edges, groups: visibleGroups}, representatives};
   }
 
+  const rectangle = (block, dx, dy) => ({block, dx, dy, left: block.left + dx, top: block.top + dy, right: block.right + dx, bottom: block.bottom + dy});
+  const bounds = items => ({left: Math.min(...items.map(item => item.left)), top: Math.min(...items.map(item => item.top)), right: Math.max(...items.map(item => item.right)), bottom: Math.max(...items.map(item => item.bottom))});
+  const align = (block, x, y, stepX, stepY) => rectangle(block, Math.ceil((x - block.left) / stepX) * stepX, Math.ceil((y - block.top) / stepY) * stepY);
+
+  function components(nodes, edges) {
+    const adjacent = new Map(nodes.map(node => [node.id, new Set()]));
+    for (const edge of edges) {adjacent.get(edge.source).add(edge.target); adjacent.get(edge.target).add(edge.source);}
+    const seen = new Set(), parts = [];
+    for (const node of nodes) {
+      if (seen.has(node.id)) continue;
+      const ids = new Set([node.id]); seen.add(node.id);
+      for (const id of ids) for (const next of adjacent.get(id)) if (!seen.has(next)) {seen.add(next); ids.add(next);}
+      parts.push(ids);
+    }
+    return parts;
+  }
+
+  function pack(blocks, stepX, stepY) {
+    if (!blocks.length) return [];
+    const sorted = [...blocks].sort((a, b) => (b.bottom - b.top) - (a.bottom - a.top) || (b.right - b.left) - (a.right - a.left));
+    const area = blocks.reduce((sum, block) => sum + (block.right - block.left) * (block.bottom - block.top), 0);
+    const widest = Math.max(...blocks.map(block => block.right - block.left));
+    let best, bestScore = Infinity;
+    for (const ratio of [.6, 1, 1.6, 2.4, 3.5]) {
+      const limit = Math.max(widest, Math.sqrt(area * ratio)) + stepX;
+      let x = 0, y = 0, bottom = 0;
+      const placed = [];
+      for (const block of sorted) {
+        let item = align(block, x, y, stepX, stepY);
+        if (x && item.right > limit) {x = 0; y = bottom + 20; item = align(block, x, y, stepX, stepY);}
+        placed.push(item); x = item.right + 20; bottom = Math.max(bottom, item.bottom);
+      }
+      const box = bounds(placed), w = box.right - box.left, h = box.bottom - box.top;
+      const score = w * h * (1 + .15 * Math.log(w / h / 1.6) ** 2);
+      if (score < bestScore) {best = placed; bestScore = score;}
+    }
+    return best;
+  }
+
   function layoutGraph(graph, compact = false, options = {}) {
     const mode = options.layout || 'layered';
     const vertical = (options.direction || (compact ? 'vertical' : 'horizontal')) === 'vertical';
@@ -185,6 +224,18 @@
     const cardWidth = compact ? 180 : 225, cardHeight = compact ? 112 : 136;
     const gapX = mode === 'tree' && !vertical ? (compact ? 68 : 85) : (compact ? 20 : 45);
     const gapY = mode === 'tree' && vertical ? (compact ? 68 : 85) : (compact ? 20 : 45);
+    const parts = mode === 'tree' ? [] : components(graph.nodes, graph.edges);
+    if (parts.length > 1) {
+      const blocks = parts.map(ids => {
+        const result = layoutGraph({...graph, groups: undefined, nodes: graph.nodes.filter(node => ids.has(node.id)), edges: graph.edges.filter(edge => ids.has(edge.source))}, compact, options);
+        const left = Math.min(...result.nodes.map(node => node.x)), top = Math.min(...result.nodes.map(node => node.y));
+        const nodes = result.nodes.map(node => ({...node, x: node.x - left, y: node.y - top}));
+        return {nodes, left: 0, top: 0, right: Math.max(...nodes.map(node => node.x)) + cardWidth, bottom: Math.max(...nodes.map(node => node.y)) + cardHeight};
+      });
+      const positioned = new Map(pack(blocks, cardWidth + gapX, cardHeight + gapY).flatMap(item => item.block.nodes.map(node => [node.id, {...node, x: node.x + item.dx, y: node.y + item.dy}])));
+      const nodes = graph.nodes.map(node => positioned.get(node.id));
+      return finishLayout(graph, nodes, gridEdges(graph, nodes, cardWidth, cardHeight, gapX, gapY), cardWidth, cardHeight);
+    }
     const positions = mode === 'network' ? networkPositions(graph, cardWidth / 2) : forestPositions(graph, mode === 'radial', vertical, cardWidth, cardHeight, gapX, gapY);
     const occupied = new Set();
     const nodes = graph.nodes.map((node, i) => {
@@ -212,29 +263,91 @@
     const stepX = width + gapX, stepY = height + gapY;
     const owners = new Map(graph.groups.flatMap(group => group.nodeIds.map(id => [id, group.id])));
     const originalEdges = new Map(graph.edges.map(edge => [edge.id, edge]));
-    const rectangle = (block, dx, dy) => ({block, dx, dy, left: block.left + dx, top: block.top + dy, right: block.right + dx, bottom: block.bottom + dy});
-    const align = (block, x, y) => rectangle(block, Math.ceil((x - block.left) / stepX) * stepX, Math.ceil((y - block.top) / stepY) * stepY);
-    const bounds = items => ({left: Math.min(...items.map(item => item.left)), top: Math.min(...items.map(item => item.top)), right: Math.max(...items.map(item => item.right)), bottom: Math.max(...items.map(item => item.bottom))});
-    function pack(blocks) {
-      if (!blocks.length) return [];
-      const sorted = [...blocks].sort((a, b) => (b.bottom - b.top) - (a.bottom - a.top) || (b.right - b.left) - (a.right - a.left));
-      const area = blocks.reduce((sum, block) => sum + (block.right - block.left) * (block.bottom - block.top), 0);
-      const widest = Math.max(...blocks.map(block => block.right - block.left));
-      let best, bestScore = Infinity;
-      for (const ratio of [.6, 1, 1.6, 2.4, 3.5]) {
-        const limit = Math.max(widest, Math.sqrt(area * ratio)) + stepX;
-        let x = 0, y = 0, bottom = 0;
-        const placed = [];
-        for (const block of sorted) {
-          let item = align(block, x, y);
-          if (x && item.right > limit) {x = 0; y = bottom + 20; item = align(block, x, y);}
-          placed.push(item); x = item.right + 20; bottom = Math.max(bottom, item.bottom);
+    function relaxNodes(placed, edges, anchors) {
+      const positions = new Map(placed.map(item => [item.block.id, item]));
+      const incident = new Map(placed.map(item => [item.block.id, []]));
+      for (const edge of edges) {incident.get(edge.source).push(edge); incident.get(edge.target).push(edge);}
+      const fixed = placed[0], center = [(fixed.left + fixed.right) / 2, (fixed.top + fixed.bottom) / 2];
+      for (let sweep = 0; sweep < 8; sweep++) for (const item of sweep % 2 ? placed.slice(1).reverse() : placed.slice(1)) {
+        const energy = candidate => {
+          let value = .02 * (((candidate.left + candidate.right) / 2 - center[0]) ** 2 + ((candidate.top + candidate.bottom) / 2 - center[1]) ** 2);
+          for (const edge of incident.get(item.block.id)) {
+            const a = edge.source === item.block.id ? candidate : positions.get(edge.source), b = edge.target === item.block.id ? candidate : positions.get(edge.target);
+            const original = originalEdges.get(edge.id), start = anchors.get(original.source), end = anchors.get(original.target);
+            value += (a.dx + start.x - b.dx - end.x) ** 2 + (a.dy + start.y - b.dy - end.y) ** 2;
+          }
+          return value;
+        };
+        let best = item, bestEnergy = energy(item);
+        for (const x of [-1, 0, 1]) for (const y of [-1, 0, 1]) {
+          if (!x && !y) continue;
+          const candidate = rectangle(item.block, item.dx + x * stepX, item.dy + y * stepY);
+          if (placed.some(other => other !== item && candidate.left < other.right + 20 && candidate.right + 20 > other.left && candidate.top < other.bottom + 20 && candidate.bottom + 20 > other.top)) continue;
+          const value = energy(candidate);
+          if (value < bestEnergy) {best = candidate; bestEnergy = value;}
         }
-        const box = bounds(placed), w = box.right - box.left, h = box.bottom - box.top;
-        const score = w * h * (1 + .15 * Math.log(w / h / 1.6) ** 2);
-        if (score < bestScore) {best = placed; bestScore = score;}
+        if (best !== item) Object.assign(item, best);
       }
-      return best;
+      return placed;
+    }
+    function compactGroups(placed, edges, anchors) {
+      if (!placed.some(item => item.block.groups.length)) return placed;
+      const positionOf = new Map(placed.map(item => [item.block.id, item]));
+      const mainStep = vertical ? stepY : stepX;
+      const preferred = options.layout === 'radial' ? new Map(placed.map(item => [item.block.id, {dx: item.dx, dy: item.dy}])) : null;
+      const incident = new Map(placed.map(item => [item.block.id, []]));
+      for (const edge of edges) {incident.get(edge.source).push(edge); incident.get(edge.target).push(edge);}
+      const fixed = placed.reduce((a, b) => (a.right - a.left) * (a.bottom - a.top) >= (b.right - b.left) * (b.bottom - b.top) ? a : b);
+      for (let sweep = 0; sweep < 4; sweep++) for (const item of sweep % 2 ? [...placed].reverse() : placed) {
+        if (item === fixed) continue;
+        const links = incident.get(item.block.id);
+        if (!links.length) continue;
+        let x = 0, y = 0;
+        for (const edge of links) {
+          const original = originalEdges.get(edge.id), source = anchors.get(original.source), target = anchors.get(original.target);
+          const outgoing = edge.source === item.block.id, other = positionOf.get(outgoing ? edge.target : edge.source);
+          const ownAnchor = outgoing ? source : target, otherAnchor = outgoing ? target : source;
+          const advance = !directed || original.direction === 'both' || original.direction === 'none' ? 0 : outgoing ? -mainStep : mainStep;
+          x += other.dx + otherAnchor.x - ownAnchor.x + (vertical ? 0 : advance);
+          y += other.dy + otherAnchor.y - ownAnchor.y + (vertical ? advance : 0);
+        }
+        const desired = rectangle(item.block, Math.round(x / links.length / stepX) * stepX, Math.round(y / links.length / stepY) * stepY);
+        const others = placed.filter(other => other !== item), occupied = bounds(others);
+        const distance = other => Math.max(0, desired.left - other.right, other.left - desired.right) ** 2 + Math.max(0, desired.top - other.bottom, other.top - desired.bottom) ** 2;
+        const nearby = [...others].sort((a, b) => distance(a) - distance(b) || (b.right - b.left) * (b.bottom - b.top) - (a.right - a.left) * (a.bottom - a.top)).slice(0, 8);
+        const candidates = [desired];
+        for (const other of nearby) {
+          const xs = [Math.floor((other.left - 20 - item.block.right) / stepX) * stepX, Math.ceil((other.right + 20 - item.block.left) / stepX) * stepX];
+          const ys = [Math.floor((other.top - 20 - item.block.bottom) / stepY) * stepY, Math.ceil((other.bottom + 20 - item.block.top) / stepY) * stepY];
+          for (const dx of xs) for (const dy of [desired.dy, Math.round((other.top - item.block.top) / stepY) * stepY, Math.round((other.bottom - item.block.bottom) / stepY) * stepY]) candidates.push(rectangle(item.block, dx, dy));
+          for (const dy of ys) for (const dx of [desired.dx, Math.round((other.left - item.block.left) / stepX) * stepX, Math.round((other.right - item.block.right) / stepX) * stepX]) candidates.push(rectangle(item.block, dx, dy));
+        }
+        const energy = candidate => {
+          let value = 0;
+          for (const edge of links) {
+            const original = originalEdges.get(edge.id), start = anchors.get(original.source), end = anchors.get(original.target);
+            const a = edge.source === item.block.id ? candidate : positionOf.get(edge.source), b = edge.target === item.block.id ? candidate : positionOf.get(edge.target);
+            const dx = b.dx + end.x - a.dx - start.x, dy = b.dy + end.y - a.dy - start.y;
+            value += dx * dx + dy * dy;
+            if (directed && original.direction !== 'both' && original.direction !== 'none') {
+              const advance = vertical ? dy : dx;
+              if (positionOf.get(edge.source).rank < positionOf.get(edge.target).rank && advance <= 0) return Infinity;
+              value += 4 * Math.max(0, mainStep - advance) ** 2;
+            }
+          }
+          const reference = preferred?.get(item.block.id);
+          const radial = reference ? .05 * ((candidate.dx - reference.dx) ** 2 + (candidate.dy - reference.dy) ** 2) : 0;
+          return value / (directed ? links.length : edges.length) + radial + (directed ? .1 : .5) * (Math.max(occupied.right, candidate.right) - Math.min(occupied.left, candidate.left)) * (Math.max(occupied.bottom, candidate.bottom) - Math.min(occupied.top, candidate.top));
+        };
+        let best = item, bestEnergy = energy(item);
+        for (const candidate of candidates) {
+          if (others.some(other => candidate.left < other.right + 20 && candidate.right + 20 > other.left && candidate.top < other.bottom + 20 && candidate.bottom + 20 > other.top)) continue;
+          const value = energy(candidate);
+          if (value < bestEnergy) {best = candidate; bestEnergy = value;}
+        }
+        if (best !== item) Object.assign(item, best);
+      }
+      return placed;
     }
     function place(units, edges, anchors) {
       if (units.length === 1) return [rectangle(units[0], 0, 0)];
@@ -247,7 +360,7 @@
           const first = byId.get(a.id), second = byId.get(b.id);
           return (second.right - second.left) * (second.bottom - second.top) - (first.right - first.left) * (first.bottom - first.top);
         })) {
-          const unit = byId.get(position.id), desired = align(unit, position.x, position.y);
+          const unit = byId.get(position.id), desired = align(unit, position.x, position.y, stepX, stepY);
           let item = desired;
           if (collides(item)) {
             const candidates = [];
@@ -264,33 +377,7 @@
           }
           placed.push(item);
         }
-        if (options.layout === 'network') {
-          const positions = new Map(placed.map(item => [item.block.id, item]));
-          const incident = new Map(units.map(unit => [unit.id, []]));
-          for (const edge of edges) {incident.get(edge.source).push(edge); incident.get(edge.target).push(edge);}
-          const fixed = placed[0], center = [(fixed.left + fixed.right) / 2, (fixed.top + fixed.bottom) / 2];
-          for (let sweep = 0; sweep < 8; sweep++) for (const item of sweep % 2 ? placed.slice(1).reverse() : placed.slice(1)) {
-            const energy = candidate => {
-              let value = .02 * (((candidate.left + candidate.right) / 2 - center[0]) ** 2 + ((candidate.top + candidate.bottom) / 2 - center[1]) ** 2);
-              for (const edge of incident.get(item.block.id)) {
-                const a = edge.source === item.block.id ? candidate : positions.get(edge.source), b = edge.target === item.block.id ? candidate : positions.get(edge.target);
-                const original = originalEdges.get(edge.id), start = anchors.get(original.source), end = anchors.get(original.target);
-                value += (a.dx + start.x - b.dx - end.x) ** 2 + (a.dy + start.y - b.dy - end.y) ** 2;
-              }
-              return value;
-            };
-            let best = item, bestEnergy = energy(item);
-            for (const x of [-1, 0, 1]) for (const y of [-1, 0, 1]) {
-              if (!x && !y) continue;
-              const candidate = rectangle(item.block, item.dx + x * stepX, item.dy + y * stepY);
-              if (placed.some(other => other !== item && candidate.left < other.right + 20 && candidate.right + 20 > other.left && candidate.top < other.bottom + 20 && candidate.bottom + 20 > other.top)) continue;
-              const value = energy(candidate);
-              if (value < bestEnergy) {best = candidate; bestEnergy = value;}
-            }
-            if (best !== item) Object.assign(item, best);
-          }
-        }
-        return placed;
+        return options.layout === 'network' && !units.some(unit => unit.groups.length) ? relaxNodes(placed, edges, anchors) : compactGroups(placed, edges, anchors);
       }
       const main = vertical ? 'y' : 'x', cross = vertical ? 'x' : 'y';
       const before = vertical ? 'top' : 'left', after = vertical ? 'bottom' : 'right';
@@ -336,59 +423,7 @@
           else {item.dy += shift; item.top += shift; item.bottom += shift;}
         }
       }
-      if (units.some(unit => unit.groups.length)) {
-        const incident = new Map(units.map(unit => [unit.id, []]));
-        for (const edge of edges) {incident.get(edge.source).push(edge); incident.get(edge.target).push(edge);}
-        const fixed = placed.reduce((a, b) => (a.right - a.left) * (a.bottom - a.top) >= (b.right - b.left) * (b.bottom - b.top) ? a : b);
-        for (let sweep = 0; sweep < 4; sweep++) for (const item of sweep % 2 ? [...placed].reverse() : placed) {
-          if (item === fixed) continue;
-          const links = incident.get(item.block.id);
-          if (!links.length) continue;
-          let x = 0, y = 0;
-          for (const edge of links) {
-            const original = originalEdges.get(edge.id), source = anchors.get(original.source), target = anchors.get(original.target);
-            const outgoing = edge.source === item.block.id, other = positionOf.get(outgoing ? edge.target : edge.source);
-            const ownAnchor = outgoing ? source : target, otherAnchor = outgoing ? target : source;
-            const advance = original.direction === 'both' || original.direction === 'none' ? 0 : outgoing ? -mainStep : mainStep;
-            x += other.dx + otherAnchor.x - ownAnchor.x + (vertical ? 0 : advance);
-            y += other.dy + otherAnchor.y - ownAnchor.y + (vertical ? advance : 0);
-          }
-          const desired = rectangle(item.block, Math.round(x / links.length / stepX) * stepX, Math.round(y / links.length / stepY) * stepY);
-          const others = placed.filter(other => other !== item), occupied = bounds(others);
-          const distance = other => Math.max(0, desired.left - other.right, other.left - desired.right) ** 2 + Math.max(0, desired.top - other.bottom, other.top - desired.bottom) ** 2;
-          const nearby = [...others].sort((a, b) => distance(a) - distance(b) || (b.right - b.left) * (b.bottom - b.top) - (a.right - a.left) * (a.bottom - a.top)).slice(0, 8);
-          const candidates = [desired];
-          for (const other of nearby) {
-            const xs = [Math.floor((other.left - 20 - item.block.right) / stepX) * stepX, Math.ceil((other.right + 20 - item.block.left) / stepX) * stepX];
-            const ys = [Math.floor((other.top - 20 - item.block.bottom) / stepY) * stepY, Math.ceil((other.bottom + 20 - item.block.top) / stepY) * stepY];
-            for (const dx of xs) for (const dy of [desired.dy, Math.round((other.top - item.block.top) / stepY) * stepY, Math.round((other.bottom - item.block.bottom) / stepY) * stepY]) candidates.push(rectangle(item.block, dx, dy));
-            for (const dy of ys) for (const dx of [desired.dx, Math.round((other.left - item.block.left) / stepX) * stepX, Math.round((other.right - item.block.right) / stepX) * stepX]) candidates.push(rectangle(item.block, dx, dy));
-          }
-          const energy = candidate => {
-            let value = 0;
-            for (const edge of links) {
-              const original = originalEdges.get(edge.id), start = anchors.get(original.source), end = anchors.get(original.target);
-              const a = edge.source === item.block.id ? candidate : positionOf.get(edge.source), b = edge.target === item.block.id ? candidate : positionOf.get(edge.target);
-              const dx = b.dx + end.x - a.dx - start.x, dy = b.dy + end.y - a.dy - start.y;
-              value += dx * dx + dy * dy;
-              if (original.direction !== 'both' && original.direction !== 'none') {
-                const advance = vertical ? dy : dx;
-                if (positionOf.get(edge.source).rank < positionOf.get(edge.target).rank && advance <= 0) return Infinity;
-                value += 4 * Math.max(0, mainStep - advance) ** 2;
-              }
-            }
-            return value / links.length + .1 * (Math.max(occupied.right, candidate.right) - Math.min(occupied.left, candidate.left)) * (Math.max(occupied.bottom, candidate.bottom) - Math.min(occupied.top, candidate.top));
-          };
-          let best = item, bestEnergy = energy(item);
-          for (const candidate of candidates) {
-            if (others.some(other => candidate.left < other.right + 20 && candidate.right + 20 > other.left && candidate.top < other.bottom + 20 && candidate.bottom + 20 > other.top)) continue;
-            const value = energy(candidate);
-            if (value < bestEnergy) {best = candidate; bestEnergy = value;}
-          }
-          if (best !== item) Object.assign(item, best);
-        }
-      }
-      return placed;
+      return compactGroups(placed, edges, anchors);
     }
     function arrange(parentId) {
       const units = graph.nodes.filter(node => owners.get(node.id) === parentId).map(node => ({id: node.id, label: node.label, nodes: [{...node, x: 0, y: 0}], groups: [], left: 0, top: 0, right: width, bottom: height}));
@@ -403,17 +438,12 @@
         return source && target && source !== target ? [{...edge, source, target}] : [];
       });
       const nodes = [], groups = [], byId = new Map(units.map(unit => [unit.id, unit]));
-      const adjacent = new Map(units.map(unit => [unit.id, new Set()]));
-      for (const edge of edges) {adjacent.get(edge.source).add(edge.target); adjacent.get(edge.target).add(edge.source);}
-      const seen = new Set(), pieces = [];
-      for (const unit of units) {
-        if (seen.has(unit.id)) continue;
-        const ids = new Set([unit.id]), queue = [unit.id]; seen.add(unit.id);
-        for (let i = 0; i < queue.length; i++) for (const id of adjacent.get(queue[i])) if (!seen.has(id)) {seen.add(id); ids.add(id); queue.push(id);}
-        const placements = place(queue.map(id => byId.get(id)), edges.filter(edge => ids.has(edge.source) && ids.has(edge.target)), anchors);
+      const pieces = [];
+      for (const ids of components(units, edges)) {
+        const placements = place([...ids].map(id => byId.get(id)), edges.filter(edge => ids.has(edge.source)), anchors);
         pieces.push({...bounds(placements), placements});
       }
-      for (const piece of pack(pieces)) for (const placement of piece.block.placements) {
+      for (const piece of pack(pieces, stepX, stepY)) for (const placement of piece.block.placements) {
         const unit = placement.block, dx = placement.dx + piece.dx, dy = placement.dy + piece.dy;
         nodes.push(...unit.nodes.map(node => ({...node, x: node.x + dx, y: node.y + dy})));
         groups.push(...unit.groups.map(group => ({...group, x: group.x + dx, y: group.y + dy})));
@@ -467,16 +497,31 @@
     let offset = 0;
     for (const root of roots) {place(root, offset); offset += weights[root];}
     if (!radial) return graph.nodes.map((node, i) => vertical ? [cross[i] * (width + gapX), depth[i] * (height + gapY)] : [depth[i] * (width + gapX), cross[i] * (height + gapY)]);
-    const rings = [], radius = [], spacing = Math.hypot(width + gapX, height + gapY);
+    const rings = [], radius = [], occupied = [], spanX = width + gapX, spanY = height + gapY;
     depth.forEach((value, i) => {const ring = value + (roots.length > 1 ? 1 : 0); (rings[ring] ||= []).push(angles[i]);});
     for (let ring = 0; ring < rings.length; ring++) {
-      const values = (rings[ring] || []).sort((a, b) => a - b);
+      const values = rings[ring] || [];
       let required = 0;
-      if (values.length > 1) {
-        const minimum = Math.min(...values.map((angle, i) => (values[(i + 1) % values.length] - angle + Math.PI * 2) % (Math.PI * 2)));
-        required = spacing / (2 * Math.sin(minimum / 2));
+      for (let i = 0; i < values.length; i++) for (let j = i + 1; j < values.length; j++) {
+        const dx = Math.abs(Math.cos(values[i]) - Math.cos(values[j])), dy = Math.abs(Math.sin(values[i]) - Math.sin(values[j]));
+        required = Math.max(required, Math.min(dx > 1e-9 ? spanX / dx : Infinity, dy > 1e-9 ? spanY / dy : Infinity));
       }
-      radius[ring] = Math.max(ring ? radius[ring - 1] + spacing : 0, required);
+      let r = Math.max(occupied.length ? radius[ring - 1] + Math.min(spanX, spanY) : 0, required);
+      const intervals = [];
+      for (const angle of values) for (const point of occupied) {
+        let lo = -Infinity, hi = Infinity;
+        for (const [unit, center, span] of [[Math.cos(angle), point[0], spanX], [Math.sin(angle), point[1], spanY]]) {
+          if (Math.abs(unit) < 1e-9) {if (Math.abs(center) >= span) {lo = Infinity; break;}}
+          else {
+            const a = (center - span) / unit, b = (center + span) / unit;
+            lo = Math.max(lo, Math.min(a, b)); hi = Math.min(hi, Math.max(a, b));
+          }
+        }
+        if (lo < hi && hi > 0) intervals.push([lo, hi]);
+      }
+      for (const [lo, hi] of intervals.sort((a, b) => a[0] - b[0])) if (r > lo && r < hi) r = hi + 1e-6;
+      radius[ring] = r;
+      for (const angle of values) occupied.push([Math.cos(angle) * r, Math.sin(angle) * r]);
     }
     return graph.nodes.map((node, i) => {
       const r = radius[depth[i] + (roots.length > 1 ? 1 : 0)];
