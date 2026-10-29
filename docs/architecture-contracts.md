@@ -58,6 +58,8 @@ collapsedGroupIds는 해당 보기에서 접힌 그룹 ID 배열이며, 기본�
 내부 연결은 숨기며, 같은 카드 쌍에 연결되는 여러 관계의 ID와 방향은 각각 유지한다.
 원본 그래프는 바꾸지 않고 표시용 그래프만 배치하므로, 펼치면 원래 노드와 연결을 복원한다.
 부모 그룹을 접어도 자식 그룹의 접힘 상태를 유지한다.
+전체 접기는 중첩 그룹을 포함한 모든 그룹 ID를 저장하고, 전체 펼치기는 접힌 그룹 목록을 비운다.
+각 전체 전환은 한 번의 상태 변경과 재배치로 처리하고, 표시 결과에 카메라를 맞춘다.
 숨겨진 선택 노드와 검색 결과는 그 노드를 포함한 접힌 카드로 표시한다.
 미니맵과 PNG는 같은 표시용 그래프를 사용한다.
 
@@ -74,6 +76,7 @@ onThemeChange(theme)는 적용된 light 또는 dark 값을 전달한다.
 | setQuery | query | 해당 뷰의 검색어 |
 | setLayout | layout, direction, 선택적 camera | 해당 뷰의 배치와 카메라 |
 | setGroupCollapsed | groupId, collapsed, 선택적 camera | 해당 뷰의 그룹 접힘 상태와 카메라 |
+| setAllGroupsCollapsed | collapsed, 선택적 camera | 해당 뷰의 모든 그룹 접힘 상태와 카메라 |
 
 onInteraction은 카메라 조작 시작과 종료를 알린다.
 드래그 종료와 애니메이션 완료 때 완성된 카메라만 전달한다.
@@ -87,6 +90,17 @@ exportImage는 전체 그래프의 PNG Blob과 파일명을 {blob,filename}으�
 onExport가 없으면 브라우저 다운로드를 사용한다.
 MCP UI는 [ui/download-file](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx#requests-view--host)로 앱에 파일 저장을 요청한다.
 비어 있거나 제거한 뷰에서는 exportImage가 오류를 반환한다.
+
+상단 복사 버튼은 원본 그래프 전체를 공통 JSON으로 직렬화한다.
+GraphModel.exportGraph(graph, {includeContent})는 복사할 그래프 객체를 반환하며, includeContent의 기본값은 true다.
+true이면 원본 필드 전체를 복제한다.
+false이면 노드, 연결, 그룹의 ID와 텍스트를 임시 이름으로 대체하고, 설명, 상태, 출처, 관계 이름과 추가 메타데이터를 제외한다.
+노드 유형의 구분, 연결 방향, 순환, 그룹 끝점과 중첩 관계는 유지한다.
+보기 상태와 저장 자료는 변경하지 않으며, 접혀서 숨겨진 내용도 복사 대상이다.
+
+MCP 리소스는 [clipboardWrite 권한](https://apps.extensions.modelcontextprotocol.io/api/interfaces/app.McpUiResourcePermissions.html)을 요청한다.
+화면은 사용자 클릭에서 Clipboard API로 쓰고, 사용할 수 없으면 선택한 텍스트의 복사를 시도한다.
+자동 복사가 모두 실패하면 읽기 전용 JSON 입력란을 표시하고 Ctrl+C로 복사할 수 있게 한다.
 
 ## 2. 명령
 

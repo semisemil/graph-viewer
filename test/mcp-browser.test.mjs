@@ -546,7 +546,90 @@ test('groups collapse into connected cards, retain nested state and restore acro
   });
   await storedUntil(f.client, item => ['Inner', 'Other', 'Empty'].every(id => item.state.views.large.collapsedGroupIds.includes(id)));
   assert.deepEqual(await ids('.node'), ['C', 'D', 'Empty', 'Inner', 'Other']);
+  const beforeAll = success(await f.client.call('graph_read')).snapshot;
+  await f.frame.getByRole('button', {name: '전체 그룹 접기', exact: true}).click();
+  const allClosed = await storedUntil(f.client, item => item.state.views.large.collapsedGroupIds.length === 4);
+  assert.equal(allClosed.stateRevision, beforeAll.stateRevision + 1);
+  assert.deepEqual(await ids('.node'), ['D', 'Empty', 'Other', 'Outer']);
+  assert.deepEqual(await ids('.mini-node'), ['D', 'Empty', 'Other', 'Outer']);
+  assert.equal(await f.frame.getByRole('button', {name: '전체 그룹 접기', exact: true}).isDisabled(), true);
+  await f.frame.getByRole('button', {name: '전체 그룹 펼치기', exact: true}).click();
+  const allOpened = await storedUntil(f.client, item => item.state.views.large.collapsedGroupIds.length === 0);
+  assert.equal(allOpened.stateRevision, allClosed.stateRevision + 1);
+  assert.deepEqual(await ids('.node'), ['A', 'B', 'C', 'D', 'E']);
+  assert.deepEqual(await ids('.connection'), graph.edges.map(edge => edge.id).sort());
+  assert.equal(await f.frame.getByRole('button', {name: '전체 그룹 펼치기', exact: true}).isDisabled(), true);
+  await second.frame.locator('.node[data-id="A"]').waitFor();
   await second.page.close();
+  assert.deepEqual(f.errors, []);
+});
+
+test('clipboard exports complete or content-free graph JSON and supports manual copy when access is denied', {skip: !packagePath, timeout: 30000}, async t => {
+  const graph = groupedGraph();
+  graph.graphId = 'private-customer-graph'; graph.title = '고객 전용 구조'; graph.kind = 'private-customer-kind';
+  graph.nodes[0] = {...graph.nodes[0], type: 'private-customer-type', details: 'private-customer-description', status: 'private-customer-status', sources: [{label: '고객 자료', href: 'https://private.customer.example/doc'}], metadata: {owner: 'private-customer-owner'}};
+  graph.metadata = {projectPath: 'C:/private-customer-project'};
+  graph.edges[0].metadata = 'private-customer-edge';
+  const f = await browserFixture(t, {graph, entry: path.join('plugins', 'graph-viewer', 'start.ps1'), launcher: true});
+  f.page.setDefaultTimeout(7000);
+  await f.page.context().grantPermissions(['clipboard-read', 'clipboard-write'], {origin: 'http://127.0.0.1'});
+  await f.frame.getByRole('button', {name: '전체 그룹 접기', exact: true}).click();
+  await storedUntil(f.client, item => item.state.views.large.collapsedGroupIds.length === 4);
+  const before = success(await f.client.call('graph_read', {graphId: graph.graphId})).snapshot;
+  const copy = f.frame.getByRole('button', {name: '그래프 JSON 복사', exact: true});
+  const readClipboard = () => f.page.evaluate(() => navigator.clipboard.readText());
+  await copy.click();
+  await f.frame.getByRole('button', {name: '내용 포함하여 복사'}).focus();
+  await f.page.keyboard.press('Enter');
+  await f.frame.getByRole('status').filter({hasText: '그래프 JSON을 복사했습니다.'}).waitFor();
+  assert.deepEqual(JSON.parse(await readClipboard()), graph, 'hidden members and unknown source fields must be preserved');
+  assert.deepEqual(success(await f.client.call('graph_read', {graphId: graph.graphId})).snapshot, before);
+  await copy.click();
+  await f.frame.getByRole('button', {name: '내용 비우고 복사'}).click();
+  await f.frame.getByRole('dialog').waitFor({state: 'hidden'});
+  const emptyText = await readClipboard(), empty = JSON.parse(emptyText);
+  for (const secret of ['private-customer', 'private.customer.example', '고객', 'API 서비스', '요청', '응답']) assert.equal(emptyText.includes(secret), false, secret);
+  assert.equal(empty.nodes.length, 5); assert.equal(empty.groups.length, 4); assert.equal(empty.edges.length, 10);
+  const originalIds = new Set([...graph.nodes, ...graph.groups, ...graph.edges].map(item => item.id));
+  assert.equal([...empty.nodes, ...empty.groups, ...empty.edges].some(item => originalIds.has(item.id)), false);
+  assert.equal(new Set(empty.nodes.map(node => node.type)).size, 2);
+  assert.notEqual(empty.nodes[0].type, empty.nodes[1].type);
+  assert.equal(empty.nodes[1].type, empty.nodes[4].type);
+  const ids = new Map([...empty.nodes.map((node, i) => [node.id, `n${i}`]), ...empty.groups.map((group, i) => [group.id, `g${i}`])]);
+  assert.deepEqual(empty.edges.map(edge => [ids.get(edge.source), ids.get(edge.target), edge.direction || 'forward']), [
+    ['n0', 'n1', 'forward'], ['n1', 'n2', 'forward'], ['n0', 'n3', 'forward'], ['n1', 'n3', 'forward'],
+    ['g1', 'n3', 'forward'], ['n3', 'n2', 'both'], ['n3', 'n4', 'none'], ['g3', 'n3', 'forward'],
+    ['n0', 'n0', 'forward'], ['n3', 'n3', 'forward'],
+  ]);
+  assert.deepEqual(empty.groups.map(group => ({nodes: group.nodeIds.map(id => ids.get(id)), parent: ids.get(group.parentId)})), [
+    {nodes: ['n2'], parent: undefined}, {nodes: ['n0', 'n1'], parent: 'g0'}, {nodes: ['n4'], parent: undefined}, {nodes: [], parent: undefined},
+  ]);
+  await publish(f.client, empty);
+  assert.deepEqual(success(await f.client.call('graph_read', {graphId: empty.graphId})).snapshot.graph, empty);
+  await f.frame.locator('svg.graph').evaluate(() => {
+    Object.defineProperty(navigator.clipboard, 'writeText', {configurable: true, value: () => Promise.reject(new DOMException('Denied', 'NotAllowedError'))});
+  });
+  await copy.click();
+  await f.frame.getByRole('button', {name: '내용 포함하여 복사'}).click();
+  await f.frame.getByRole('dialog').waitFor({state: 'hidden'});
+  assert.deepEqual(JSON.parse(await readClipboard()), graph, 'legacy copy must still write to the actual clipboard');
+  await f.frame.locator('svg.graph').evaluate(() => {document.execCommand = () => false;});
+  await f.page.setViewportSize({width: 380, height: 850});
+  await copy.click();
+  await f.frame.getByRole('button', {name: '내용 비우고 복사'}).click();
+  const manual = f.frame.getByRole('textbox', {name: '복사할 그래프 JSON'});
+  await manual.waitFor();
+  assert.deepEqual(JSON.parse(await manual.inputValue()), empty);
+  await f.page.keyboard.press('Control+c');
+  assert.deepEqual(JSON.parse(await readClipboard()), empty);
+  const within = await f.frame.getByRole('dialog').evaluate(dialog => {
+    const bounds = dialog.getBoundingClientRect();
+    return bounds.left >= 0 && bounds.right <= innerWidth && bounds.top >= 0 && bounds.bottom <= innerHeight;
+  });
+  assert.equal(within, true);
+  await f.page.keyboard.press('Escape');
+  await f.frame.getByRole('dialog').waitFor({state: 'hidden'});
+  assert.deepEqual(success(await f.client.call('graph_read', {graphId: graph.graphId})).snapshot, before);
   assert.deepEqual(f.errors, []);
 });
 

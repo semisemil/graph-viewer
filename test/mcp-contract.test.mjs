@@ -220,6 +220,13 @@ test('collapsed groups and group selection survive reconnect, preserve source da
   assert.deepEqual(panel.snapshot.state.views.large.collapsedGroupIds, ['Inner']);
   assert.deepEqual(panel.snapshot.state.views.summary.collapsedGroupIds, []);
   assert.deepEqual(panel.snapshot.state.views.large.camera, camera);
+  const beforeAll = panel.snapshot.stateRevision;
+  await action(client, panel, {type: 'setAllGroupsCollapsed', collapsed: true});
+  assert.equal(panel.snapshot.stateRevision, beforeAll + 1);
+  assert.deepEqual(panel.snapshot.state.views.large.collapsedGroupIds, ['Outer', 'Inner', 'Other', 'Empty']);
+  await action(client, panel, {type: 'setAllGroupsCollapsed', collapsed: false});
+  assert.deepEqual(panel.snapshot.state.views.large.collapsedGroupIds, []);
+  await action(client, panel, {type: 'setGroupCollapsed', groupId: 'Inner', collapsed: true});
   await client.stop();
   const restarted = await f.start(), reopened = await openGraph(restarted, graph.graphId);
   assert.deepEqual(reopened.snapshot, panel.snapshot);
@@ -305,6 +312,7 @@ test('modern discovery exposes model and app tools separately and returns a self
   assert.equal(contents.length, 1);
   assert.equal(contents[0].mimeType, 'text/html;profile=mcp-app');
   assert.deepEqual(contents[0]._meta['openai/ui'].availableDisplayModes, ['fullscreen']);
+  assert.deepEqual(contents[0]._meta.ui.permissions, {clipboardWrite: {}});
   assert.match(contents[0].text, /<html[\s>]/i);
   assert.doesNotMatch(contents[0].text, /(?:src|href)=["'](?:file:|[A-Z]:[\\/])/i);
   assert.doesNotMatch(contents[0].text, /C:[\\/]graph-viewer/i);

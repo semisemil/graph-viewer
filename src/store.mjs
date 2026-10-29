@@ -240,12 +240,16 @@ export class GraphStore {
         const part = item.state.views[view];
         part.layout = action.layout; part.direction = action.direction;
         part.camera = action.camera ? {x: action.camera.x, y: action.camera.y, zoom: action.camera.zoom} : null;
-      } else if (action.type === 'setGroupCollapsed') {
-        if (!item.graph.groups?.some(group => group.id === action.groupId) || typeof action.collapsed !== 'boolean') throw failure('invalid-group', '그룹 ID와 접힘 여부를 확인하세요.');
+      } else if (action.type === 'setGroupCollapsed' || action.type === 'setAllGroupsCollapsed') {
+        if (typeof action.collapsed !== 'boolean' || action.type === 'setGroupCollapsed' && !item.graph.groups?.some(group => group.id === action.groupId)) throw failure('invalid-group', '그룹 ID와 접힘 여부를 확인하세요.');
         if (action.camera !== undefined && !validCamera(action.camera)) throw failure('invalid-camera', '카메라 중심과 양수 배율이 필요합니다.');
-        const part = item.state.views[view], ids = new Set(part.collapsedGroupIds);
-        if (action.collapsed) ids.add(action.groupId); else ids.delete(action.groupId);
-        part.collapsedGroupIds = [...ids];
+        const part = item.state.views[view];
+        if (action.type === 'setAllGroupsCollapsed') part.collapsedGroupIds = action.collapsed ? (item.graph.groups || []).map(group => group.id) : [];
+        else {
+          const ids = new Set(part.collapsedGroupIds);
+          if (action.collapsed) ids.add(action.groupId); else ids.delete(action.groupId);
+          part.collapsedGroupIds = [...ids];
+        }
         if (action.camera) part.camera = {x: action.camera.x, y: action.camera.y, zoom: action.camera.zoom};
       } else throw failure('invalid-action', '지원하지 않는 상태 명령입니다.');
       item.stateRevision++;

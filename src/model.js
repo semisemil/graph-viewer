@@ -114,6 +114,22 @@
     return {nodes, edges, groups};
   }
 
+  function exportGraph(graph, {includeContent = true} = {}) {
+    if (includeContent) return JSON.parse(JSON.stringify(graph));
+    const ids = new Map(), types = new Map();
+    graph.nodes.forEach((node, i) => ids.set(node.id, `node-${i + 1}`));
+    (graph.groups || []).forEach((group, i) => ids.set(group.id, `group-${i + 1}`));
+    return {
+      schemaVersion: 1, graphId: 'shared-graph', title: '그래프',
+      nodes: graph.nodes.map((node, i) => {
+        if (!types.has(node.type)) types.set(node.type, `유형 ${types.size + 1}`);
+        return {id: ids.get(node.id), type: types.get(node.type), label: `노드 ${i + 1}`};
+      }),
+      edges: graph.edges.map((edge, i) => ({id: `edge-${i + 1}`, source: ids.get(edge.source), target: ids.get(edge.target), ...(edge.direction === undefined ? {} : {direction: edge.direction})})),
+      ...(graph.groups ? {groups: graph.groups.map((group, i) => ({id: ids.get(group.id), label: `그룹 ${i + 1}`, nodeIds: group.nodeIds.map(id => ids.get(id)), ...(group.parentId === undefined ? {} : {parentId: ids.get(group.parentId)})}))} : {}),
+    };
+  }
+
   function groupMembers(graph) {
     const members = new Map(), children = new Map((graph.groups || []).map(group => [group.id, []]));
     const byId = new Map((graph.groups || []).map(group => [group.id, group]));
@@ -616,7 +632,7 @@
     return {nodes, edges, groups, cardWidth, cardHeight, width: right - left + margin, height: bottom - top + margin};
   }
 
-  const api = Object.freeze({limits, layoutModes, layoutDirections, validateGraph, connectedPath, collapseGroups, layoutGraph});
+  const api = Object.freeze({limits, layoutModes, layoutDirections, validateGraph, exportGraph, connectedPath, collapseGroups, layoutGraph});
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.GraphModel = api;
 })(globalThis);

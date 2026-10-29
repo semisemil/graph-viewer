@@ -35,8 +35,9 @@ export async function browserFixture(t, { initialOrder = 'after', hostTheme = 'd
     }));
     await page.goto('http://127.0.0.1/mcp-contract-host');
     await page.exposeFunction('mcpDownload', params => {downloads.push(params);});
-    await page.evaluate(({ html, opened, initialOrder, hostTheme }) => {
+    await page.evaluate(({ html, opened, initialOrder, hostTheme, clipboardWrite }) => {
       const frame = document.querySelector('iframe');
+      if (clipboardWrite) frame.setAttribute('allow', 'clipboard-write');
       const send = message => frame.contentWindow.postMessage({ jsonrpc: '2.0', ...message }, '*');
       window.deliverToolResult = result => send({ method: 'ui/notifications/tool-result', params: result });
       window.deliverHostContext = context => send({method: 'ui/notifications/host-context-changed', params: context});
@@ -77,7 +78,7 @@ export async function browserFixture(t, { initialOrder = 'after', hostTheme = 'd
         send({ id, result });
       });
       frame.srcdoc = html;
-    }, { html: contents[0].text, opened, initialOrder, hostTheme });
+    }, { html: contents[0].text, opened, initialOrder, hostTheme, clipboardWrite: contents[0]._meta?.ui?.permissions?.clipboardWrite !== undefined });
     const frame = page.frameLocator('iframe');
     await frame.locator('.graph-viewer').waitFor();
     return {

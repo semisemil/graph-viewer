@@ -172,7 +172,7 @@ const serving = serveStdio(factory => {
   });
   server.registerResource('graph-viewer', uri, {title: 'Graph Viewer', mimeType: 'text/html;profile=mcp-app'}, async resource => ({contents: [{
     uri: resource.href, mimeType: 'text/html;profile=mcp-app', text: await viewer(),
-    _meta: {ui: {csp: {connectDomains: [], resourceDomains: []}}, 'openai/ui': {availableDisplayModes: ['fullscreen']}},
+    _meta: {ui: {csp: {connectDomains: [], resourceDomains: []}, permissions: {clipboardWrite: {}}}, 'openai/ui': {availableDisplayModes: ['fullscreen']}},
   }]}));
   return server;
 }, {transport, onerror: error => {console.error(error.message);}});

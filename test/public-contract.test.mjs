@@ -151,6 +151,9 @@ test('shared selection, independent cameras and search survive edits without los
   assert.equal(before.state.views.large.layout, 'network');
   assert.deepEqual(before.state.views.summary.collapsedGroupIds, ['service']);
   assert.deepEqual(before.state.views.large.collapsedGroupIds, []);
+  await service.action(THREAD_A, graph.graphId, 'large', {type: 'setAllGroupsCollapsed', collapsed: true});
+  assert.deepEqual((await service.read(THREAD_A, graph.graphId)).state.views.large.collapsedGroupIds, ['service']);
+  await service.action(THREAD_A, graph.graphId, 'large', {type: 'setAllGroupsCollapsed', collapsed: false});
   await service.publish(THREAD_A, {...graph, title: '본문 수정'}, 1);
   const after = await service.read(THREAD_A, graph.graphId);
   assert.deepEqual(after.state, before.state);
