@@ -81,23 +81,24 @@
   }
 
   function connectedPath(graph, selected) {
-    if (!graph.nodes.some(n => n.id === selected)) return {nodes: new Set(), edges: new Set(), groups: new Set()};
-    const forward = new Map(graph.nodes.map(node => [node.id, []]));
-    const backward = new Map(graph.nodes.map(node => [node.id, []]));
     const members = groupMembers(graph), hubs = new Map();
+    const ids = [...graph.nodes.map(node => node.id), ...members.keys()];
+    if (!ids.includes(selected)) return {nodes: new Set(), edges: new Set(), groups: new Set()};
+    const forward = new Map(ids.map(id => [id, []]));
+    const backward = new Map(ids.map(id => [id, []]));
     const link = (source, target) => {forward.get(source).push(target); backward.get(target).push(source);};
     for (const edge of graph.edges) {
       const reverse = edge.direction === 'both' || edge.direction === 'none';
       if (members.has(edge.source) || members.has(edge.target)) {
         const hub = Symbol(edge.id); hubs.set(edge.id, hub); forward.set(hub, []); backward.set(hub, []);
-        for (const source of members.get(edge.source) || [edge.source]) {link(source, hub); if (reverse) link(hub, source);}
-        for (const target of members.get(edge.target) || [edge.target]) {link(hub, target); if (reverse) link(target, hub);}
+        for (const source of [edge.source, ...(members.get(edge.source) || [])]) {link(source, hub); if (reverse) link(hub, source);}
+        for (const target of [edge.target, ...(members.get(edge.target) || [])]) {link(hub, target); if (reverse) link(target, hub);}
       } else {
         link(edge.source, edge.target); if (reverse) link(edge.target, edge.source);
       }
     }
     function visit(adjacent) {
-      const seen = new Set([selected]), pending = [selected];
+      const pending = [selected, ...(members.get(selected) || [])], seen = new Set(pending);
       while (pending.length) {
         const id = pending.pop();
         for (const next of adjacent.get(id)) if (!seen.has(next)) {seen.add(next); pending.push(next);}
@@ -107,7 +108,7 @@
     const before = visit(backward), after = visit(forward);
     const nodes = new Set(graph.nodes.filter(node => before.has(node.id) || after.has(node.id)).map(node => node.id));
     const edges = new Set(graph.edges.filter(edge => hubs.has(edge.id) ? before.has(hubs.get(edge.id)) || after.has(hubs.get(edge.id)) : before.has(edge.source) && before.has(edge.target) || after.has(edge.source) && after.has(edge.target)).map(edge => edge.id));
-    const groups = new Set([...members].filter(([id, items]) => items.some(node => nodes.has(node)) || graph.edges.some(edge => edges.has(edge.id) && (edge.source === id || edge.target === id))).map(([id]) => id));
+    const groups = new Set([...members].filter(([id, items]) => before.has(id) || after.has(id) || items.some(node => nodes.has(node))).map(([id]) => id));
     const parents = new Map((graph.groups || []).map(group => [group.id, group.parentId]));
     for (const id of groups) if (parents.get(id)) groups.add(parents.get(id));
     return {nodes, edges, groups};
@@ -123,6 +124,39 @@
     }
     for (const group of graph.groups || []) visit(group.id);
     return members;
+  }
+
+  function collapseGroups(graph, collapsedGroupIds = []) {
+    const groups = new Map((graph.groups || []).map(group => [group.id, group]));
+    const collapsed = new Set(collapsedGroupIds.filter(id => groups.has(id)));
+    const representatives = new Map();
+    function representative(id) {
+      if (!representatives.has(id)) {
+        const group = groups.get(id), parent = group.parentId && representative(group.parentId);
+        representatives.set(id, parent && collapsed.has(parent) ? parent : id);
+      }
+      return representatives.get(id);
+    }
+    for (const id of groups.keys()) representative(id);
+    const owners = new Map([...groups.values()].flatMap(group => group.nodeIds.map(id => [id, group.id])));
+    for (const node of graph.nodes) {
+      const owner = owners.get(node.id), parent = owner && representative(owner);
+      representatives.set(node.id, parent && collapsed.has(parent) ? parent : node.id);
+    }
+    const nodes = graph.nodes.filter(node => representatives.get(node.id) === node.id);
+    const members = groupMembers(graph);
+    for (const group of groups.values()) if (collapsed.has(group.id) && representative(group.id) === group.id) {
+      nodes.push({id: group.id, type: '그룹', label: group.label, details: `노드 ${members.get(group.id).length}개`});
+    }
+    const visibleGroups = [...groups.values()].filter(group => !collapsed.has(group.id) && representative(group.id) === group.id).map(group => ({
+      ...group, nodeIds: [...group.nodeIds.filter(id => representatives.get(id) === id),
+        ...[...groups.values()].filter(child => child.parentId === group.id && collapsed.has(child.id)).map(child => child.id)],
+    }));
+    const edges = graph.edges.flatMap(edge => {
+      const source = representatives.get(edge.source), target = representatives.get(edge.target);
+      return source === target && collapsed.has(source) ? [] : [{...edge, source, target}];
+    });
+    return {graph: {...graph, nodes, edges, groups: visibleGroups}, representatives};
   }
 
   function layoutGraph(graph, compact = false, options = {}) {
@@ -582,7 +616,7 @@
     return {nodes, edges, groups, cardWidth, cardHeight, width: right - left + margin, height: bottom - top + margin};
   }
 
-  const api = Object.freeze({limits, layoutModes, layoutDirections, validateGraph, connectedPath, layoutGraph});
+  const api = Object.freeze({limits, layoutModes, layoutDirections, validateGraph, connectedPath, collapseGroups, layoutGraph});
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.GraphModel = api;
 })(globalThis);

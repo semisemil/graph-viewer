@@ -12,7 +12,7 @@ MCP 실행 구조는 [아키텍처](architecture.md)를 참고한다.
 const view = GraphPanel.mount(container, {
   graph,
   compact: true,
-  state: {selectedNodeId: null, camera: null, query: '', layout: 'layered', direction: 'vertical'},
+  state: {selectedNodeId: null, camera: null, query: '', layout: 'layered', direction: 'vertical', collapsedGroupIds: []},
   onAction(action) {},
   onInteraction(active) {}
 });
@@ -29,7 +29,7 @@ zoom 1은 100%다.
 처음 카메라가 null이면 화면에 맞추되, 배율은 75% 이상으로 시작한다.
 전체를 표시하기에 화면이 작으면 선택한 노드 또는 시작 노드 주변을 보여준다.
 ‘전체 맞춤’은 배율 제한 없이 그래프 전체를 표시하고, 배율 숫자를 누르면 현재 중심에서 100%로 전환한다.
-같은 그래프의 update에서 state를 생략하면 선택, 카메라와 검색을 유지한다.
+같은 그래프의 update에서 state를 생략하면 선택, 카메라, 검색과 그룹 접힘 상태를 유지한다.
 layout은 layered, tree, radial 또는 network다.
 direction은 horizontal 또는 vertical이며, 계층형과 트리형에 적용한다.
 compact는 카드 크기를 정하고, 명시한 direction과 별도로 동작한다.
@@ -53,6 +53,14 @@ destroy는 자신이 만든 요소, 감시자와 이벤트만 제거한다.
 그룹의 실제 크기로 간격을 정하며, 계층형과 트리형은 연결되는 내부 항목의 위치에 맞춰 이웃 그룹을 정렬한다.
 그룹 자체를 가리키는 연결은 그룹 테두리에 연결하고, 노드를 선택하면 관련 그룹과 경로를 본문과 미니맵에서 강조한다.
 
+collapsedGroupIds는 해당 보기에서 접힌 그룹 ID 배열이며, 기본값은 빈 배열이다.
+접힌 그룹은 내부 노드 수를 표시하는 카드로 바꾸고, 외부 연결의 끝점을 그 카드로 옮긴다.
+내부 연결은 숨기며, 같은 카드 쌍에 연결되는 여러 관계의 ID와 방향은 각각 유지한다.
+원본 그래프는 바꾸지 않고 표시용 그래프만 배치하므로, 펼치면 원래 노드와 연결을 복원한다.
+부모 그룹을 접어도 자식 그룹의 접힘 상태를 유지한다.
+숨겨진 선택 노드와 검색 결과는 그 노드를 포함한 접힌 카드로 표시한다.
+미니맵과 PNG는 같은 표시용 그래프를 사용한다.
+
 테마는 화면 상단에서 자동, 라이트 또는 다크를 선택한다.
 자동은 mount의 hostTheme 또는 setHostTheme으로 전달한 앱 테마를 따르며, 앱 테마가 없으면 운영체제 설정을 따른다.
 선택한 테마는 브라우저 저장소를 사용할 수 있을 때 같은 출처의 다음 화면에도 적용한다.
@@ -61,18 +69,19 @@ onThemeChange(theme)는 적용된 light 또는 dark 값을 전달한다.
 
 | 사용자 명령 | 값 | 변경 범위 |
 |---|---|---|
-| selectNode | nodeId 또는 null | 그래프 공통 선택 |
+| selectNode | 노드 또는 그룹 ID인 nodeId, 또는 null | 그래프 공통 선택 |
 | setCamera | camera | 해당 뷰의 중심과 배율 |
 | setQuery | query | 해당 뷰의 검색어 |
 | setLayout | layout, direction, 선택적 camera | 해당 뷰의 배치와 카메라 |
+| setGroupCollapsed | groupId, collapsed, 선택적 camera | 해당 뷰의 그룹 접힘 상태와 카메라 |
 
 onInteraction은 카메라 조작 시작과 종료를 알린다.
 드래그 종료와 애니메이션 완료 때 완성된 카메라만 전달한다.
 
 exportImage는 전체 그래프의 PNG Blob과 파일명을 {blob,filename}으로 반환한다.
-현재 배치, 테마, 선택 강조와 검색에 따른 흐림을 포함한다.
+현재 배치, 테마, 선택 강조, 그룹 접힘 상태와 검색에 따른 흐림을 포함한다.
 화면의 확대 비율과 중심은 이미지 범위를 바꾸지 않으며, 이미지 생성도 보기 상태를 바꾸지 않는다.
-도구 모음, 미니맵, 툴팁과 흐름 애니메이션은 이미지에 포함하지 않는다.
+도구 모음, 미니맵, 툴팁, 그룹 접기 버튼과 흐름 애니메이션은 이미지에 포함하지 않는다.
 기본 배율은 2배이며, 한 변 16,384 px와 총 33,554,432 픽셀 한도에 맞춰 축소한다.
 이미지 저장 버튼은 PNG를 만든 뒤 onExport({blob,filename}) 옵션을 호출한다.
 onExport가 없으면 브라우저 다운로드를 사용한다.
@@ -139,8 +148,8 @@ snapshot은 {graph,revision,state,stateRevision} 또는 null이다.
 {
   "selectedNodeId": null,
   "views": {
-    "summary": {"camera": null, "query": "", "layout": "layered", "direction": "vertical"},
-    "large": {"camera": null, "query": "", "layout": "layered", "direction": "horizontal"}
+    "summary": {"camera": null, "query": "", "layout": "layered", "direction": "vertical", "collapsedGroupIds": []},
+    "large": {"camera": null, "query": "", "layout": "layered", "direction": "horizontal", "collapsedGroupIds": []}
   }
 }
 ```
@@ -148,6 +157,7 @@ snapshot은 {graph,revision,state,stateRevision} 또는 null이다.
 같은 채팅의 읽기와 변경은 하나의 큐에서 처리한다.
 nativeViews는 MCP의 그래프별 연결이며, 같은 그래프를 다시 열 때 연결 토큰을 재사용한다.
 이전 저장 자료에 배치 설정이 없으면 기본값을 적용한다.
+그룹 접힘 상태가 없으면 모두 펼친 상태로 읽으며, 그래프 갱신 시 삭제된 그룹의 ID를 보기 상태에서 제거한다.
 그래프 등록은 expectedRevision이 현재 revision과 같을 때만 진행하고 버전을 1 증가시킨다.
 선택과 뷰별 상태 변경은 필요한 필드만 수정하고 stateRevision을 증가시킨다.
 오래된 graph revision의 상태 쓰기는 거부한다.
