@@ -530,7 +530,7 @@
       try {
         const value = model.exportGraph(graph, {includeContent});
         let text = JSON.stringify(value, null, 2);
-        if (new TextEncoder().encode(text).length > model.limits.bytes) text = JSON.stringify(value);
+        if (new TextEncoder().encode(text.replace(/\n/g, '\r\n')).length > model.limits.bytes) text = JSON.stringify(value);
         let written = false;
         try {if (window.navigator.clipboard?.writeText) {await window.navigator.clipboard.writeText(text); written = true;}} catch {}
         if (destroyed) return;
