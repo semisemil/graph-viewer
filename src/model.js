@@ -336,6 +336,58 @@
           else {item.dy += shift; item.top += shift; item.bottom += shift;}
         }
       }
+      if (units.some(unit => unit.groups.length)) {
+        const incident = new Map(units.map(unit => [unit.id, []]));
+        for (const edge of edges) {incident.get(edge.source).push(edge); incident.get(edge.target).push(edge);}
+        const fixed = placed.reduce((a, b) => (a.right - a.left) * (a.bottom - a.top) >= (b.right - b.left) * (b.bottom - b.top) ? a : b);
+        for (let sweep = 0; sweep < 4; sweep++) for (const item of sweep % 2 ? [...placed].reverse() : placed) {
+          if (item === fixed) continue;
+          const links = incident.get(item.block.id);
+          if (!links.length) continue;
+          let x = 0, y = 0;
+          for (const edge of links) {
+            const original = originalEdges.get(edge.id), source = anchors.get(original.source), target = anchors.get(original.target);
+            const outgoing = edge.source === item.block.id, other = positionOf.get(outgoing ? edge.target : edge.source);
+            const ownAnchor = outgoing ? source : target, otherAnchor = outgoing ? target : source;
+            const advance = original.direction === 'both' || original.direction === 'none' ? 0 : outgoing ? -mainStep : mainStep;
+            x += other.dx + otherAnchor.x - ownAnchor.x + (vertical ? 0 : advance);
+            y += other.dy + otherAnchor.y - ownAnchor.y + (vertical ? advance : 0);
+          }
+          const desired = rectangle(item.block, Math.round(x / links.length / stepX) * stepX, Math.round(y / links.length / stepY) * stepY);
+          const others = placed.filter(other => other !== item), occupied = bounds(others);
+          const distance = other => Math.max(0, desired.left - other.right, other.left - desired.right) ** 2 + Math.max(0, desired.top - other.bottom, other.top - desired.bottom) ** 2;
+          const nearby = [...others].sort((a, b) => distance(a) - distance(b) || (b.right - b.left) * (b.bottom - b.top) - (a.right - a.left) * (a.bottom - a.top)).slice(0, 8);
+          const candidates = [desired];
+          for (const other of nearby) {
+            const xs = [Math.floor((other.left - 20 - item.block.right) / stepX) * stepX, Math.ceil((other.right + 20 - item.block.left) / stepX) * stepX];
+            const ys = [Math.floor((other.top - 20 - item.block.bottom) / stepY) * stepY, Math.ceil((other.bottom + 20 - item.block.top) / stepY) * stepY];
+            for (const dx of xs) for (const dy of [desired.dy, Math.round((other.top - item.block.top) / stepY) * stepY, Math.round((other.bottom - item.block.bottom) / stepY) * stepY]) candidates.push(rectangle(item.block, dx, dy));
+            for (const dy of ys) for (const dx of [desired.dx, Math.round((other.left - item.block.left) / stepX) * stepX, Math.round((other.right - item.block.right) / stepX) * stepX]) candidates.push(rectangle(item.block, dx, dy));
+          }
+          const energy = candidate => {
+            let value = 0;
+            for (const edge of links) {
+              const original = originalEdges.get(edge.id), start = anchors.get(original.source), end = anchors.get(original.target);
+              const a = edge.source === item.block.id ? candidate : positionOf.get(edge.source), b = edge.target === item.block.id ? candidate : positionOf.get(edge.target);
+              const dx = b.dx + end.x - a.dx - start.x, dy = b.dy + end.y - a.dy - start.y;
+              value += dx * dx + dy * dy;
+              if (original.direction !== 'both' && original.direction !== 'none') {
+                const advance = vertical ? dy : dx;
+                if (positionOf.get(edge.source).rank < positionOf.get(edge.target).rank && advance <= 0) return Infinity;
+                value += 4 * Math.max(0, mainStep - advance) ** 2;
+              }
+            }
+            return value / links.length + .1 * (Math.max(occupied.right, candidate.right) - Math.min(occupied.left, candidate.left)) * (Math.max(occupied.bottom, candidate.bottom) - Math.min(occupied.top, candidate.top));
+          };
+          let best = item, bestEnergy = energy(item);
+          for (const candidate of candidates) {
+            if (others.some(other => candidate.left < other.right + 20 && candidate.right + 20 > other.left && candidate.top < other.bottom + 20 && candidate.bottom + 20 > other.top)) continue;
+            const value = energy(candidate);
+            if (value < bestEnergy) {best = candidate; bestEnergy = value;}
+          }
+          if (best !== item) Object.assign(item, best);
+        }
+      }
       return placed;
     }
     function arrange(parentId) {
