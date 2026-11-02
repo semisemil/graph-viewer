@@ -222,10 +222,10 @@ test('PNG export downloads the entire themed graph through the host without chan
     const context = canvas.getContext('2d'); context.drawImage(image, 0, 0);
     const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
     let hasContent = false;
-    for (let i = 0; i < pixels.length; i += 4) if (pixels[i] !== 20 || pixels[i + 1] !== 22 || pixels[i + 2] !== 24) {hasContent = true; break;}
+    for (let i = 0; i < pixels.length; i += 4) if (pixels[i] !== 18 || pixels[i + 1] !== 22 || pixels[i + 2] !== 20) {hasContent = true; break;}
     return {corner: [...pixels.slice(0, 4)], hasContent};
   }, dark.toString('base64'));
-  assert.deepEqual(pixel.corner, [20, 22, 24, 255]);
+  assert.deepEqual(pixel.corner, [18, 22, 20, 255]);
   assert.equal(pixel.hasContent, true, 'the export must contain graph content rather than only its background');
   assert.equal(f.downloads.length, 3);
   assert.equal(f.downloads[0].contents[0].resource.mimeType, 'image/png');
@@ -330,8 +330,14 @@ test('the maximum graph keeps nodes selectable in overview and restores labels a
   const title = f.frame.locator('.node[data-id="n0"] .node-title');
   assert.equal(await title.evaluate(node => getComputedStyle(node).display), 'none');
   assert.equal(await f.frame.locator('.edge-flow:visible').count(), 0);
+  const overviewCamera = await f.frame.locator('svg.graph').evaluate(() => graphPanelView.getState().camera);
   await f.frame.locator('.node[data-id="n0"]').dispatchEvent('click');
-  await storedUntil(f.client, snapshot => snapshot.state.selectedNodeId === 'n0' && snapshot.state.views.large.camera?.zoom >= 1);
+  await storedUntil(f.client, snapshot => snapshot.state.selectedNodeId === 'n0');
+  assert.deepEqual(await f.frame.locator('svg.graph').evaluate(() => graphPanelView.getState().camera), overviewCamera);
+  assert.equal(await title.evaluate(node => getComputedStyle(node).display), 'none');
+  assert.equal(await f.frame.locator('.edge-flow:visible').count(), 0);
+  await f.frame.getByRole('button', {name: '100%로 보기'}).click();
+  await storedUntil(f.client, snapshot => snapshot.state.views.large.camera?.zoom === 1);
   assert.notEqual(await title.evaluate(node => getComputedStyle(node).display), 'none');
   assert.equal(await f.frame.locator('.edge-flow:visible').count(), 1);
   assert.equal(await f.frame.locator('.node.connected').count(), 499);
@@ -483,7 +489,7 @@ test('groups collapse into connected cards, retain nested state and restore acro
   const toggle = (name, expanded) => f.frame.getByRole('button', {name: `${name} ${expanded ? '접기' : '펼치기'}`, exact: true});
   const ids = selector => f.frame.locator(selector).evaluateAll(nodes => nodes.map(node => node.dataset.id).sort());
   await f.frame.locator('.node[data-id="A"]').dispatchEvent('click');
-  await storedUntil(f.client, item => item.state.selectedNodeId === 'A' && item.state.views.large.camera !== null);
+  await storedUntil(f.client, item => item.state.selectedNodeId === 'A');
   await toggle('API 서비스', true).focus();
   await f.page.keyboard.press('Enter');
   await storedUntil(f.client, item => item.state.views.large.collapsedGroupIds.includes('Inner'));
@@ -496,6 +502,8 @@ test('groups collapse into connected cards, retain nested state and restore acro
   await f.frame.getByRole('textbox', {name: '노드 검색'}).fill('숨겨진 검색 대상');
   assert.equal(await f.frame.locator('.node[data-id="Inner"].search-miss').count(), 0);
   await f.frame.getByRole('button', {name: '검색어 지우기'}).click();
+  await f.frame.locator('.node[data-id="Inner"]').dispatchEvent('click');
+  await storedUntil(f.client, item => item.state.selectedNodeId === null && item.state.views.large.query === '');
   await f.frame.locator('.node[data-id="Inner"]').dispatchEvent('click');
   await storedUntil(f.client, item => item.state.selectedNodeId === 'Inner' && item.state.views.large.query === '');
   await toggle('백엔드', true).dispatchEvent('click');
@@ -521,12 +529,10 @@ test('groups collapse into connected cards, retain nested state and restore acro
   await toggle('빈 그룹', true).click();
   await storedUntil(f.client, item => item.state.views.large.collapsedGroupIds.includes('Empty'));
   assert.equal(await f.frame.locator('.connection[data-id="empty-d"]').getAttribute('data-from'), 'Empty');
+  const emptyCamera = await f.frame.locator('svg.graph').evaluate(() => graphPanelView.getState().camera);
   await f.frame.locator('.node[data-id="Empty"]').dispatchEvent('click');
-  const emptyCenter = await f.frame.locator('.node[data-id="Empty"]').evaluate(node => {
-    const matrix = node.transform.baseVal[0].matrix, rect = node.querySelector('rect');
-    return {x: matrix.e + rect.width.baseVal.value / 2, y: matrix.f + rect.height.baseVal.value / 2};
-  });
-  await storedUntil(f.client, item => item.state.selectedNodeId === 'Empty' && item.state.views.large.camera?.x === emptyCenter.x && item.state.views.large.camera?.y === emptyCenter.y);
+  await storedUntil(f.client, item => item.state.selectedNodeId === 'Empty');
+  assert.deepEqual(await f.frame.locator('svg.graph').evaluate(() => graphPanelView.getState().camera), emptyCamera);
   assert.equal(await f.frame.locator('.connection.related[data-id="empty-d"]').count(), 1);
   const exportState = await f.frame.locator('svg.graph').evaluate(() => graphPanelView.getState());
   await f.frame.getByRole('button', {name: '그래프 이미지 저장', exact: true}).click();
@@ -838,10 +844,23 @@ test('node details use a scrollable custom tooltip that supports hover, keyboard
   await f.page.mouse.move(0, 0);
   await tooltip.waitFor({state: 'hidden'});
   const panel = {...f.opened._meta.graphPanel, snapshot: success(await f.client.call('graph_read')).snapshot};
-  await action(f.client, panel, {type: 'setCamera', camera: {x: -2000, y: 0, zoom: 1}});
+  const offscreenCamera = {x: -2000, y: 0, zoom: 1};
+  await action(f.client, panel, {type: 'setCamera', camera: offscreenCamera});
   await f.page.waitForTimeout(1150);
   await f.page.keyboard.press('Tab');
   await f.page.keyboard.press('Enter');
+  await storedUntil(f.client, snapshot => snapshot.state.selectedNodeId === null);
+  await f.page.keyboard.press('Space');
+  await storedUntil(f.client, snapshot => snapshot.state.selectedNodeId === 'question');
+  await f.page.waitForTimeout(500);
+  assert.deepEqual(await f.frame.locator('svg.graph').evaluate(() => graphPanelView.getState().camera), offscreenCamera);
+  assert.deepEqual(success(await f.client.call('graph_read')).snapshot.state.views.large.camera, offscreenCamera);
+  assert.equal(await tooltip.isVisible(), false);
+
+  await f.frame.getByRole('button', {name: '전체 맞춤'}).click();
+  await storedUntil(f.client, snapshot => snapshot.state.views.large.camera?.x !== offscreenCamera.x);
+  await f.frame.getByRole('button', {name: '그래프 이미지 저장', exact: true}).focus();
+  await f.page.keyboard.press('Tab');
   await tooltip.waitFor();
   assert.equal(await tooltip.locator('.tooltip-title').textContent(), graph.nodes[0].label);
   assert.deepEqual(f.errors, []);
@@ -870,7 +889,7 @@ test('light and dark themes follow host changes, preserve graph state and retain
   });
   await surface('dark').waitFor();
   await f.frame.locator('.node[data-id="evidence"]').click();
-  await storedUntil(f.client, snapshot => snapshot.state.selectedNodeId === 'evidence' && snapshot.state.views.large.camera !== null);
+  await storedUntil(f.client, snapshot => snapshot.state.selectedNodeId === 'evidence');
   const before = await state();
   const dark = await appearance();
   await f.changeHostContext({theme: 'light'});
