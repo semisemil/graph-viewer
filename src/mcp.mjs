@@ -2,6 +2,7 @@ import {McpServer} from '@modelcontextprotocol/server';
 import {serveStdio, StdioServerTransport} from '@modelcontextprotocol/server/stdio';
 import {z} from 'zod';
 import {appendFile, mkdir, open, readFile, realpath, stat, writeFile} from 'node:fs/promises';
+import net from 'node:net';
 import path from 'node:path';
 import GraphModel from './model.js';
 import {GraphStore, chatRef, sameChat, failure} from './store.mjs';
@@ -33,6 +34,43 @@ async function storage(projectPath) {
   })().catch(error => {stores.delete(key); throw error;}));
   return {store: await stores.get(key), dataDir, projectPath: root};
 }
+const claudeHost = process.env.GRAPH_VIEWER_HOST === 'claude';
+// Claude Code는 MCP 앱 화면을 띄우지 않으므로 프로젝트마다 로컬 HTML 뷰어를 하나 띄우고 그 주소를 돌려준다.
+const viewers = new Map();
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.once('error', reject);
+    probe.listen(0, '127.0.0.1', () => {const {port} = probe.address(); probe.close(() => resolve(port));});
+  });
+}
+async function liveViewer(file) {
+  const saved = await readFile(file, 'utf8').then(JSON.parse, () => null);
+  if (!Number.isInteger(saved?.port)) return null;
+  const response = await fetch(`http://127.0.0.1:${saved.port}/connection`, {signal: AbortSignal.timeout(1000)}).catch(() => null);
+  return response?.ok ? saved.port : null;
+}
+async function viewerPort(dataDir) {
+  const key = dataDir.toLowerCase(), file = path.join(dataDir, 'viewer.json');
+  if (viewers.has(key)) return (await viewers.get(key)).port;
+  // 같은 프로젝트를 다른 세션의 서버가 이미 보여 주고 있으면 그 뷰어를 쓴다.
+  const shared = await liveViewer(file);
+  if (shared) return shared;
+  const starting = (async () => {
+    const {startServer} = await import('./server.mjs');
+    const service = await startServer({dataDir, port: await freePort(), base: import.meta.url});
+    await writeFile(file, JSON.stringify({port: service.port, pid: process.pid}));
+    return service;
+  })();
+  viewers.set(key, starting);
+  try {return (await starting).port;}
+  catch (error) {
+    viewers.delete(key);
+    const port = error.code === 'store-in-use' && await liveViewer(file);
+    if (port) return port;
+    throw error;
+  }
+}
 const uri = 'ui://graph-viewer/graph-v2.html';
 const logFile = process.env.GRAPH_PANEL_LOG;
 async function log(event) {
@@ -48,8 +86,10 @@ function result(value, hidden) {
 }
 function requestingChat(ctx) {
   const threadId = ctx.mcpReq._meta?.threadId;
-  if (typeof threadId !== 'string' || !threadId.trim()) throw failure('missing-chat-context', '호스트가 요청 채팅 ID를 전달하지 않았습니다.');
-  return chatRef({hostId: 'local', threadId});
+  if (typeof threadId === 'string' && threadId.trim()) return chatRef({hostId: 'local', threadId});
+  // 채팅 ID를 주지 않는 호스트(Claude Code)는 프로젝트 하나를 한 범위로 쓴다.
+  if (process.env.GRAPH_VIEWER_HOST === 'claude') return chatRef({hostId: 'claude', threadId: 'project'});
+  throw failure('missing-chat-context', '호스트가 요청 채팅 ID를 전달하지 않았습니다.');
 }
 async function graphFile(file) {
   if (!path.isAbsolute(file)) throw failure('invalid-path', 'graphPath는 절대 경로여야 합니다.');
@@ -95,7 +135,7 @@ const serving = serveStdio(factory => {
   const protocolVersion = () => factory.era === 'modern' ? '2026-07-28' : negotiatedVersion;
   const server = new McpServer({name: 'graph-viewer', version}, {
     capabilities: {extensions: {'io.modelcontextprotocol/ui': {}}},
-    instructions: 'Pass the current project absolute path as projectPath. Use graph_publish with JSON or Mermaid, then open_graph. Updates do not open another tab. Chat identity comes from the host.',
+    instructions: 'Pass the current project absolute path as projectPath. Use graph_publish with JSON or Mermaid, then open_graph. ' + (claudeHost ? 'open_graph returns a local url: open it in the browser pane or give it to the user. The open page follows later updates.' : 'Updates do not open another tab. Chat identity comes from the host.'),
   });
   const observed = new Set();
   function tool(name, config, run) {
@@ -144,7 +184,15 @@ const serving = serveStdio(factory => {
     title: 'Graph Viewer', description: 'Open this chat’s saved graph in a separate native graph tab. Existing viewers stay connected to their graphs. Reopening restores saved selection, camera and search.',
     inputSchema: optionalGraph, annotations: {...readOnly, readOnlyHint: false, idempotentHint: false},
     _meta: {ui: {resourceUri: uri, visibility: ['model']}, 'openai/ui': {entrypoints: [{type: 'thread'}]}},
-  }, async (args, ref, {store, scope}) => {
+  }, async (args, ref, {store, scope, dataDir}) => {
+    if (claudeHost) {
+      const status = await store.status(ref, args.graphId);
+      if (!status.snapshot) throw failure('graph-not-found', '먼저 그래프를 등록하세요.', 404);
+      const item = await store.activate(ref, status.snapshot.graph.graphId);
+      const url = new URL(`http://127.0.0.1:${await viewerPort(dataDir)}/view`);
+      for (const [key, value] of Object.entries({...ref, graphId: item.graph.graphId})) url.searchParams.set(key, value);
+      return result({requested: true, graphId: item.graph.graphId, title: item.graph.title, revision: item.revision, url: url.href});
+    }
     const opened = await store.openNative(ref, args.graphId);
     const item = summary(opened.snapshot);
     return result({requested: true, graphId: item.graphId, title: item.title, revision: item.revision}, {scope, ...opened});
@@ -188,6 +236,7 @@ const parentWatch = setInterval(async () => {
     clearInterval(parentWatch);
     try {
       await serving.close();
+      await Promise.allSettled([...viewers.values()].map(async service => (await service).close()));
       await Promise.allSettled([...stores.values()].map(async store => (await store).drain()));
     } finally {process.exit(0);}
   }

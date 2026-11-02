@@ -346,7 +346,7 @@ test('a generated package runs after moving to a directory with spaces and Korea
   });
   await rename(output, moved);
   const plugin = path.join(moved, 'plugins', 'graph-viewer');
-  const config = JSON.parse(await readFile(path.join(plugin, '.mcp.json'), 'utf8'));
+  const config = JSON.parse(await readFile(path.join(plugin, '.codex-mcp.json'), 'utf8'));
   const manifest = JSON.parse(await readFile(path.join(plugin, '.codex-plugin', 'plugin.json'), 'utf8'));
   assert.equal(manifest.name, 'graph-viewer');
   assert.equal(manifest.interface.displayName, 'Graph Viewer');
@@ -368,4 +368,28 @@ test('a generated package runs after moving to a directory with spaces and Korea
   success(await client.call('graph_publish', {mermaid: 'flowchart LR\n A[이동 후] --> B[Mermaid]', graphId: 'portable-mermaid', expectedRevision: 0}));
   const converted = success(await client.call('graph_read', {graphId: 'portable-mermaid'})).snapshot.graph;
   assert.deepEqual(converted.nodes.map(node => node.label), ['이동 후', 'Mermaid']);
+});
+
+test('Claude host without chat IDs keeps one project scope and opens a shared HTML viewer', async t => {
+  const f = await fixture(t), env = { GRAPH_VIEWER_HOST: 'claude' };
+  const client = await f.start(ENTRY, ROOT, { env });
+  const graph = groupedGraph();
+  success(await client.call('graph_publish', { graph, expectedRevision: 0 }, null));
+  const status = success(await client.call('graph_status', {}, null));
+  assert.deepEqual(status.chatRef, { hostId: 'claude', threadId: 'project' });
+  assert.equal(status.activeGraphId, graph.graphId);
+  assert.deepEqual(success(await client.call('graph_status', {})).graphs, []);
+  const opened = success(await client.call('open_graph', { graphId: graph.graphId }, null));
+  const url = new URL(opened.url);
+  assert.equal(url.hostname, '127.0.0.1');
+  assert.equal(url.pathname, '/view');
+  assert.deepEqual(Object.fromEntries(url.searchParams), { hostId: 'claude', threadId: 'project', graphId: graph.graphId });
+  const page = await fetch(url);
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /<script src="\/client\.js" defer>/);
+  const { token } = await (await fetch(new URL('/connection', url))).json();
+  const saved = await (await fetch(new URL(`/api/status?${url.searchParams}`, url), { headers: { Authorization: `Bearer ${token}` } })).json();
+  assert.equal(saved.snapshot.graph.graphId, graph.graphId);
+  const other = await f.start(ENTRY, ROOT, { env });
+  assert.equal(success(await other.call('open_graph', { graphId: graph.graphId }, null)).url, opened.url);
 });

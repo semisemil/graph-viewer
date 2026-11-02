@@ -12,6 +12,7 @@ export async function buildPlugin() {
   await mkdir(path.join(plugin, 'src'), {recursive: true});
   await mkdir(path.join(plugin, 'web'), {recursive: true});
   await mkdir(path.join(plugin, '.codex-plugin'), {recursive: true});
+  await mkdir(path.join(plugin, '.claude-plugin'), {recursive: true});
   const chunks = path.resolve(plugin, 'src', 'chunks');
   if (path.dirname(chunks) !== path.join(plugin, 'src')) throw new Error('생성 청크 경로가 잘못되었습니다.');
   await rm(chunks, {recursive: true, force: true});
@@ -38,7 +39,7 @@ export async function buildPlugin() {
   await writeFile(path.join(plugin, 'THIRD_PARTY_NOTICES.txt'), notices.join('\n\n--------------------\n\n') + '\n');
   await Promise.all([
     ...['model.js', 'renderer.js'].map(file => cp(path.join(root, 'src', file), path.join(plugin, 'src', file))),
-    cp(path.join(root, 'web', 'mcp.html'), path.join(plugin, 'web', 'mcp.html')),
+    ...['mcp.html', 'index.html', 'client.js', 'page.css'].map(file => cp(path.join(root, 'web', file), path.join(plugin, 'web', file))),
     cp(path.join(root, 'skills', 'graph-viewer'), path.join(plugin, 'skills', 'graph-viewer'), {recursive: true, filter: file => !file.endsWith(path.sep + 'scripts')}),
     cp(path.join(root, 'scripts', 'start-plugin.ps1'), path.join(plugin, 'start.ps1')),
     cp(path.join(root, 'LICENSE'), path.join(plugin, 'LICENSE')),
@@ -47,13 +48,20 @@ export async function buildPlugin() {
   await json(path.join(plugin, 'package.json'), {name: 'graph-viewer', version, private: true, license, engines});
   await json(path.join(plugin, '.codex-plugin', 'plugin.json'), {
     name: 'graph-viewer', version, description: 'Interactive graphs for the current project and Codex chat.',
-    mcpServers: './.mcp.json', skills: './skills', requires_local_executor: true,
+    mcpServers: './.codex-mcp.json', skills: './skills', requires_local_executor: true,
     interface: {displayName: 'Graph Viewer', shortDescription: '프로젝트별 그래프와 탐색'},
   });
-  await json(path.join(plugin, '.mcp.json'), {mcpServers: {'graph-viewer': {
+  await json(path.join(plugin, '.codex-mcp.json'), {mcpServers: {'graph-viewer': {
     command: 'powershell.exe', args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'start.ps1'], cwd: '.',
     env: {CODEX_MCP_PROTOCOL_VERSION: '2026-07-28'},
   }}});
+  // Claude Code는 플러그인 루트의 .mcp.json을 읽고, 채팅 ID 없이 프로젝트 단위로 저장하며 그래프를 HTML 뷰어로 연다.
+  await json(path.join(plugin, '.mcp.json'), {mcpServers: {'graph-viewer': {
+    command: 'node', args: ['${CLAUDE_PLUGIN_ROOT}/server.mjs'], env: {GRAPH_VIEWER_HOST: 'claude'},
+  }}});
+  await json(path.join(plugin, '.claude-plugin', 'plugin.json'), {
+    name: 'graph-viewer', version, description: 'Interactive graphs for the current project, opened as a live HTML viewer.', license,
+  });
   return plugin;
 }
 

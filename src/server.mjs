@@ -15,7 +15,7 @@ const files = new Map([
   ['/page.css', ['../web/page.css', 'text/css; charset=utf-8']],
 ]);
 
-export async function startServer({dataDir, port = 9232}) {
+export async function startServer({dataDir, port = 9232, base = import.meta.url}) {
   const store = new GraphStore(dataDir);
   await store.init();
   const canonical = await realpath(dataDir);
@@ -86,7 +86,7 @@ export async function startServer({dataDir, port = 9232}) {
       if (request.method === 'GET' && url.pathname === '/connection') return json({token});
       if (request.method === 'GET' && files.has(url.pathname)) {
         const [file, type] = files.get(url.pathname);
-        const body = await readFile(new URL(file, import.meta.url));
+        const body = await readFile(new URL(file, base));
         response.writeHead(200, {'Content-Type': type}); response.end(body); return;
       }
       if (request.headers.authorization !== `Bearer ${token}`) throw failure('unauthorized', '전달 서비스 인증을 갱신하세요.', 401);

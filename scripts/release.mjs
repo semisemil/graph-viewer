@@ -33,6 +33,10 @@ try {
   catalog.plugins[0].source.path = '.';
   await mkdir(path.join(output, '.agents/plugins'), {recursive: true});
   await writeFile(path.join(output, '.agents/plugins/marketplace.json'), JSON.stringify(catalog, null, 2) + '\n');
+  await writeFile(path.join(output, '.claude-plugin/marketplace.json'), JSON.stringify({
+    name: catalog.name, owner: {name: 'semisemil'},
+    plugins: [{name: catalog.plugins[0].name, source: './', description: 'Interactive project graphs opened as a live HTML viewer.'}],
+  }, null, 2) + '\n');
   await writeFile(path.join(output, '.gitattributes'), '* text=auto\nsrc/mcp.mjs -diff -text linguist-generated=true\nsrc/mcp.mjs.LEGAL.txt -whitespace\nsrc/chunks/*.mjs -diff -text linguist-generated=true\nsrc/chunks/*.LEGAL.txt -whitespace\nTHIRD_PARTY_NOTICES.txt -whitespace\n');
   const env = {...process.env, GIT_INDEX_FILE: path.join(temporary, 'index')};
   git(['--work-tree', output, 'read-tree', '--empty'], env);
