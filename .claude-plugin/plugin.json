@@ -1,6 +1,6 @@
 {
   "name": "graph-viewer",
-  "version": "1.8.2",
+  "version": "1.9.0",
   "description": "Interactive graphs for the current project, opened as a live HTML viewer.",
   "license": "MIT"
 }
