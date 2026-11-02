@@ -2,7 +2,7 @@
   "name": "graph-viewer",
   "version": "1.8.2",
   "description": "Interactive graphs for the current project and Codex chat.",
-  "mcpServers": "./.mcp.json",
+  "mcpServers": "./.codex-mcp.json",
   "skills": "./skills",
   "requires_local_executor": true,
   "interface": {

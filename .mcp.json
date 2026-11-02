@@ -1,17 +1,12 @@
 {
   "mcpServers": {
     "graph-viewer": {
-      "command": "powershell.exe",
+      "command": "node",
       "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "start.ps1"
+        "${CLAUDE_PLUGIN_ROOT}/server.mjs"
       ],
-      "cwd": ".",
       "env": {
-        "CODEX_MCP_PROTOCOL_VERSION": "2026-07-28"
+        "GRAPH_VIEWER_HOST": "claude"
       }
     }
   }

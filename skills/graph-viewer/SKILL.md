@@ -1,6 +1,6 @@
 ---
 name: graph-viewer
-description: Create and update interactive graphs from Mermaid flowcharts or JSON, including architecture and public investigation records in Codex.
+description: Create and update interactive graphs from Mermaid flowcharts or JSON, including architecture and public investigation records in Codex and Claude Code.
 ---
 
 # Graph Viewer
@@ -28,9 +28,13 @@ description: Create and update interactive graphs from Mermaid flowcharts or JSO
    열린 그래프를 갱신할 때는 publish만 호출한다.
    다른 그래프를 함께 표시하려면 다른 graphId로 저장하고 각각 open_graph를 호출한다.
    기존 뷰어는 각자의 그래프에 계속 연결되며, 같은 그래프를 여러 번 열면 선택과 보기 상태를 공유한다.
+5. Claude Code에서는 open_graph가 로컬 HTML 뷰어 주소(url)를 돌려준다.
+   브라우저 패널을 쓸 수 있으면 그 url을 열고, 없으면 사용자에게 링크로 전달한다.
+   열린 페이지는 이후 publish를 자동으로 따라가므로 갱신 때 다시 열지 않는다.
 
 채팅은 호스트가 결정한다.
 채팅 ID를 도구 인자로 복사하거나 활성 창에서 추정하지 않는다.
+채팅 ID를 주지 않는 Claude Code에서는 프로젝트 하나가 한 저장 범위다.
 
 ## 결과 확인
 

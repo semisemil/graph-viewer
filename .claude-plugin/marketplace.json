@@ -1,0 +1,13 @@
+{
+  "name": "graph-viewer",
+  "owner": {
+    "name": "semisemil"
+  },
+  "plugins": [
+    {
+      "name": "graph-viewer",
+      "source": "./",
+      "description": "Interactive project graphs opened as a live HTML viewer."
+    }
+  ]
+}
