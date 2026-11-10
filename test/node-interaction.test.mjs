@@ -191,3 +191,65 @@ test('selected nodes retain distinct type accents and a visible shape cue in bot
   }
   assert.deepEqual(f.errors, []);
 });
+
+test('selection separates direct neighbors, distant paths and unrelated branches in both themes and the minimap', options, async t => {
+  const graph = {
+    schemaVersion: 1, graphId: 'connection-patterns', title: '연결 범위 구분',
+    nodes: ['before', 'parent', 'selected', 'child', 'after', 'branch', 'isolated'].map(id => ({id, type: '단계', label: id})),
+    edges: [
+      {id: 'upstream', source: 'before', target: 'parent'},
+      {id: 'incoming', source: 'parent', target: 'selected'},
+      {id: 'outgoing', source: 'selected', target: 'child'},
+      {id: 'downstream', source: 'child', target: 'after'},
+      {id: 'other-branch', source: 'parent', target: 'branch'},
+    ],
+  };
+  const f = await browserFixture(t, {graph, entry: builtEntry, launcher: true});
+  await node(f, 'selected').click();
+  await selected(f, 'selected');
+  assert.equal(await f.frame.locator('.connection-legend').isVisible(), true);
+  const ids = selector => f.frame.locator(selector).evaluateAll(items => items.map(item => item.dataset.id).sort());
+  assert.deepEqual(await ids('.node.direct'), ['child', 'parent']);
+  assert.deepEqual(await ids('.node.connected:not(.direct)'), ['after', 'before']);
+  assert.deepEqual(await ids('.node.unrelated'), ['branch', 'isolated']);
+  assert.deepEqual(await ids('.mini-node.direct'), ['child', 'parent']);
+  assert.deepEqual(await ids('.mini-node.connected:not(.direct)'), ['after', 'before']);
+  assert.deepEqual(await ids('.mini-node.unrelated'), ['branch', 'isolated']);
+  assert.deepEqual(await ids('.connection.direct'), ['incoming', 'outgoing']);
+  assert.deepEqual(await ids('.connection.related:not(.direct)'), ['downstream', 'upstream']);
+  assert.deepEqual(await ids('.mini-connection.direct'), ['incoming', 'outgoing']);
+  for (const theme of ['dark', 'light']) {
+    await f.frame.getByRole('combobox', {name: '화면 테마'}).selectOption(theme);
+    await f.frame.locator('svg.graph').evaluate(svg => Promise.allSettled(svg.getAnimations({subtree: true}).filter(a => a.effect.getTiming().iterations !== Infinity).map(a => a.finished)));
+    const appearance = await f.frame.locator('svg.graph').evaluate(svg => {
+      const root = svg.getRootNode(), style = selector => getComputedStyle(root.querySelector(selector));
+      const card = selector => ({opacity: Number(style(selector).opacity), dash: style(selector + ' rect').strokeDasharray});
+      const edge = selector => ({opacity: Number(style(selector).opacity), width: parseFloat(style(selector + ' path').strokeWidth), dash: style(selector + ' path').strokeDasharray});
+      const flow = root.querySelector('.edge-flow').getAttribute('d');
+      return {
+        direct: card('.node.direct'), indirect: card('.node.connected:not(.direct)'), unrelated: card('.node.unrelated'),
+        directEdge: edge('.connection.direct'), indirectEdge: edge('.connection.related:not(.direct)'), unrelatedEdge: edge('.connection.unrelated'),
+        miniDirect: {opacity: Number(style('.mini-node.direct').opacity)}, miniIndirect: {opacity: Number(style('.mini-node.connected:not(.direct)').opacity)}, miniUnrelated: {opacity: Number(style('.mini-node.unrelated').opacity)},
+        animated: [...root.querySelectorAll('.connection')].filter(item => flow.includes(item.querySelector('.edge').getAttribute('d'))).map(item => item.dataset.id).sort(),
+      };
+    });
+    for (const [direct, indirect, unrelated] of [[appearance.direct, appearance.indirect, appearance.unrelated], [appearance.directEdge, appearance.indirectEdge, appearance.unrelatedEdge], [appearance.miniDirect, appearance.miniIndirect, appearance.miniUnrelated]]) {
+      assert.ok(direct.opacity > indirect.opacity && indirect.opacity > unrelated.opacity, `${theme}: prominence must decrease with connection distance`);
+    }
+    assert.equal(appearance.direct.dash, 'none');
+    assert.notEqual(appearance.indirect.dash, 'none');
+    assert.equal(appearance.directEdge.dash, 'none');
+    assert.notEqual(appearance.indirectEdge.dash, 'none');
+    assert.ok(appearance.directEdge.width > appearance.indirectEdge.width);
+    assert.deepEqual(appearance.animated, ['incoming', 'outgoing']);
+  }
+  await f.frame.getByRole('textbox', {name: '노드 검색'}).fill('isolated');
+  await node(f, 'parent').evaluate(item => Promise.allSettled(item.getAnimations().map(a => a.finished)));
+  assert.equal(await node(f, 'parent').evaluate(item => getComputedStyle(item).opacity), '0.2');
+  await f.frame.getByRole('button', {name: '검색어 지우기'}).click();
+  await node(f, 'selected').click();
+  await selected(f, null);
+  assert.equal(await f.frame.locator('.connection-legend').isVisible(), false);
+  assert.equal(await f.frame.locator('.node.direct,.node.connected,.node.unrelated,.mini-node.direct,.mini-node.unrelated,.connection.direct,.mini-connection.direct').count(), 0);
+  assert.deepEqual(f.errors, []);
+});

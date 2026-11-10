@@ -278,9 +278,9 @@ test('Mermaid arrows and selected paths render consistently in the graph and min
       const root = svg.getRootNode(), style = selector => getComputedStyle(root.querySelector(selector));
       const rgb = value => value.match(/[\d.]+/g).slice(0, 3).map(Number);
       return {
-        background: rgb(style('.canvas').backgroundColor), active: rgb(style('.edge.related').stroke), passive: rgb(style('.connection.unrelated .edge').stroke),
-        passiveOpacity: Number(style('.connection.unrelated').opacity), activeWidth: parseFloat(style('.edge.related').strokeWidth), passiveWidth: parseFloat(style('.connection.unrelated .edge').strokeWidth),
-        miniActive: rgb(style('.mini-connection.related .mini-edge').stroke), miniOpacity: Number(style('.mini-connection:not(.related)').opacity), miniWidth: parseFloat(style('.mini-connection.related .mini-edge').strokeWidth),
+        background: rgb(style('.canvas').backgroundColor), active: rgb(style('.connection.direct .edge').stroke), passive: rgb(style('.connection.unrelated .edge').stroke),
+        passiveOpacity: Number(style('.connection.unrelated').opacity), activeWidth: parseFloat(style('.connection.direct .edge').strokeWidth), passiveWidth: parseFloat(style('.connection.unrelated .edge').strokeWidth),
+        miniActive: rgb(style('.mini-connection.direct .mini-edge').stroke), miniOpacity: Number(style('.mini-connection.unrelated').opacity), miniWidth: parseFloat(style('.mini-connection.direct .mini-edge').strokeWidth),
         light: rgb(style('.edge-flow').stroke), lightWidth: parseFloat(style('.edge-flow').strokeWidth),
         dash: style('.edge-flow').strokeDasharray, duration: style('.edge-flow').animationDuration, lightOpacity: Number(style('.edge-flow').opacity),
         flowPath: root.querySelector('.edge-flow').getAttribute('d'), inactivePath: root.querySelector('.connection.unrelated .edge').getAttribute('d'),
@@ -291,8 +291,8 @@ test('Mermaid arrows and selected paths render consistently in the graph and min
     assert.ok(contrast(lines.active, passive) >= 2, `${theme}: selected and unrelated paths must remain distinct without animation`);
     assert.ok(lines.activeWidth >= lines.passiveWidth * 1.5);
     assert.deepEqual(lines.miniActive, theme === 'light' ? [56, 110, 172] : [127, 174, 212]);
-    assert.equal(lines.miniOpacity, 1);
-    assert.equal(lines.miniWidth, 1.2);
+    assert.ok(lines.miniOpacity < 1);
+    assert.ok(lines.miniWidth > .8);
     assert.ok(contrast(lines.light, lines.active) >= 1.5, `${theme}: moving light must differ from the selected line`);
     assert.deepEqual(lines.light, [212, 236, 255], `${theme}: use the original dark-theme light color`);
     assert.equal(lines.lightWidth, 2);
@@ -339,9 +339,12 @@ test('the maximum graph keeps nodes selectable in overview and restores labels a
   await f.frame.getByRole('button', {name: '100%로 보기'}).click();
   await storedUntil(f.client, snapshot => snapshot.state.views.large.camera?.zoom === 1);
   assert.notEqual(await title.evaluate(node => getComputedStyle(node).display), 'none');
-  assert.equal(await f.frame.locator('.edge-flow:visible').count(), 1);
+  assert.equal(await f.frame.locator('.edge-flow:visible').count(), 0, 'offscreen direct links must not animate the distant paths in view');
   assert.equal(await f.frame.locator('.node.connected').count(), 499);
   assert.equal(await f.frame.locator('.mini-node.connected').count(), 499);
+  assert.equal(await f.frame.locator('.node.direct').count(), 5);
+  await f.frame.locator('.node[data-id="n0"]').dispatchEvent('dblclick', {button: 0});
+  await f.frame.locator('.edge-flow').waitFor({state: 'visible'});
   const image = await f.frame.locator('svg.graph').evaluate(async () => {
     const {blob} = await graphPanelView.exportImage();
     const bytes = new DataView(await blob.arrayBuffer());

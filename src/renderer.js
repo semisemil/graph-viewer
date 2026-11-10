@@ -51,30 +51,31 @@
       select:disabled{opacity:.45;cursor:default}select:disabled:hover{border-color:var(--control-border)}
       .legend{display:flex;gap:4px 18px;padding:7px 14px;line-height:18px;background:var(--surface);border-bottom:1px solid var(--line);color:var(--muted);font-size:12px;flex-wrap:wrap;max-height:80px;overflow:auto}.legend:empty{display:none}
       .legend span{display:inline-flex;align-items:center;gap:7px;overflow-wrap:anywhere}.legend span::before{content:'';flex:none;width:14px;height:3px;border-radius:2px;background:var(--c)}.legend b{color:var(--faint);font-weight:400;font-variant-numeric:tabular-nums}
+      .connection-legend{position:absolute;z-index:1;top:10px;left:14px;display:flex;align-items:center;gap:6px 14px;max-width:calc(100% - 28px);padding:5px 9px;background:var(--surface);border:1px solid var(--line);border-radius:6px;color:var(--muted);font-size:12px;flex-wrap:wrap;pointer-events:none}.connection-legend[hidden]{display:none}.connection-legend span{display:inline-flex;align-items:center;gap:6px}.connection-legend span::before{content:'';width:18px;border-top:2.4px solid var(--edge-active)}.connection-legend .indirect::before{border-top:1.6px dashed var(--related)}.connection-legend .unrelated::before{border-top:1.5px solid var(--edge);opacity:.25}
       .canvas{position:relative;flex:1;min-height:80px;background-color:var(--canvas);background-image:radial-gradient(circle,var(--grid) .8px,transparent 1.1px),linear-gradient(var(--grid-major) 1px,transparent 1px),linear-gradient(90deg,var(--grid-major) 1px,transparent 1px);background-size:24px 24px,120px 120px,120px 120px;background-position:12px 12px,0 0,0 0}
       svg.graph{width:100%;height:100%;display:block;touch-action:none;cursor:grab}svg.graph:active{cursor:grabbing}.node{cursor:pointer;outline:none}.node:focus-visible{outline:2px dashed var(--focus);outline-offset:4px}
       .tools{position:absolute;bottom:14px;left:14px;display:flex;align-items:center;gap:1px;padding:3px;border:1px solid var(--control-border);border-radius:8px;background:var(--surface);box-shadow:0 10px 24px -14px var(--tooltip-shadow)}
       .tools button{width:30px;height:30px;min-width:30px;border-radius:5px}.tools .zoom{width:auto;min-width:50px;margin-left:3px;padding:0 8px;border-radius:0 5px 5px 0;box-shadow:-1px 0 0 var(--line);color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}.tools .zoom:hover{color:var(--text)}
       .minimap{position:absolute;right:14px;bottom:14px;width:150px;height:76px;border:1px solid var(--control-border);border-radius:8px;background:var(--surface);box-shadow:0 10px 24px -14px var(--tooltip-shadow);pointer-events:none}
       .viewport{fill:var(--selected);fill-opacity:.08;stroke:var(--selected);stroke-opacity:.7;stroke-width:1;vector-effect:non-scaling-stroke}
-      .mini-edge{fill:none;stroke:var(--mini-edge);stroke-width:.8;vector-effect:non-scaling-stroke}.mini-connection.related .mini-edge{stroke:var(--mini-edge-active);stroke-width:1.2}
-      .mini-node{stroke:var(--node-border);stroke-width:.6;vector-effect:non-scaling-stroke;opacity:.45}.mini-node.connected{stroke:var(--related);stroke-width:1.3;opacity:.9}
+      .mini-edge{fill:none;stroke:var(--mini-edge);stroke-width:.8;vector-effect:non-scaling-stroke}.mini-connection.related .mini-edge{stroke:var(--mini-edge-active);stroke-width:1;stroke-dasharray:4 3}.mini-connection.direct .mini-edge{stroke-width:1.6;stroke-dasharray:none}.mini-connection.unrelated{opacity:.25}
+      .mini-node{stroke:var(--node-border);stroke-width:.6;vector-effect:non-scaling-stroke;opacity:.45}.mini-node.connected{stroke:var(--related);stroke-width:1;stroke-dasharray:3 2;opacity:.65}.mini-node.direct{stroke-width:1.6;stroke-dasharray:none;opacity:1}.mini-node.unrelated{opacity:.2}
       .mini-node.selected{stroke:var(--accent);stroke-width:2;opacity:1}
       .node{transition:opacity 160ms ease}.node>rect:first-child{transition:stroke 160ms ease,stroke-width 160ms ease}.node:hover>rect:first-child{stroke:var(--node-border-strong)}
       .node-frame{fill:none;stroke:var(--accent);stroke-width:2;stroke-linecap:square;opacity:0;transform-box:fill-box;transform-origin:center;transform:scale(1.08);transition:opacity 140ms ease,transform 260ms cubic-bezier(.2,.9,.25,1);pointer-events:none}
       .node[aria-pressed="true"] .node-frame{opacity:1;transform:none}
       .group-box{pointer-events:none}.group-border{fill:var(--node-surface);fill-opacity:.35;stroke:var(--node-border-strong);stroke-width:1.4;stroke-dasharray:.5 5;stroke-linecap:round}.group-title{fill:var(--muted);font-size:13px;font-weight:600}
       .group-toggle{pointer-events:all;cursor:pointer;outline:none}.group-toggle rect{fill:var(--control);stroke:var(--control-border);stroke-width:1;transition:fill 120ms ease}.group-toggle:hover rect{fill:var(--control-hover)}.group-toggle:focus-visible rect{stroke:var(--focus);stroke-width:2}.group-toggle path{fill:none;stroke:var(--muted);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
-      .group-box.related .group-border{stroke:var(--related);stroke-width:1.5;stroke-dasharray:none}.group-box.related .group-title{fill:var(--text)}
-      .mini-group{fill:none;stroke:var(--node-border);stroke-width:.7;vector-effect:non-scaling-stroke}.mini-group.related{stroke:var(--related);stroke-width:1.2}
-      .node.connected>rect:first-child{stroke:var(--related);stroke-width:1.6}.node[aria-pressed="true"]>rect:first-child{stroke:var(--accent);stroke-width:1.6}.node.unrelated{opacity:.55}.node.search-miss{opacity:.2}
-      .connection{transition:opacity 180ms ease}.connection.unrelated{opacity:.35}
-      .edge{transition:stroke 180ms ease,stroke-width 180ms ease;stroke-linecap:round;stroke-linejoin:round}.edge.related{stroke:var(--edge-active);stroke-width:2.4}
+      .group-box.related .group-border{stroke:var(--related);stroke-width:1.2;stroke-dasharray:5 4}.group-box.direct .group-border{stroke-width:1.8;stroke-dasharray:none}.group-box.direct .group-title{fill:var(--text)}
+      .mini-group{fill:none;stroke:var(--node-border);stroke-width:.7;vector-effect:non-scaling-stroke}.mini-group.related{stroke:var(--related);stroke-width:1;stroke-dasharray:3 2}.mini-group.direct{stroke-width:1.5;stroke-dasharray:none}
+      .node.connected{opacity:.75}.node.connected>rect:first-child{stroke:var(--related);stroke-width:1.2;stroke-dasharray:5 4}.node.direct{opacity:1}.node.direct>rect:first-child{stroke-width:1.8;stroke-dasharray:none}.node[aria-pressed="true"]>rect:first-child{stroke:var(--accent);stroke-width:1.6}.node.unrelated{opacity:.3}.node.search-miss{opacity:.2}
+      .connection{transition:opacity 180ms ease}.connection.related{opacity:.7}.connection.direct{opacity:1}.connection.unrelated{opacity:.25}
+      .edge{transition:stroke 180ms ease,stroke-width 180ms ease;stroke-linecap:round;stroke-linejoin:round}.edge.related{stroke:var(--related);stroke-width:1.6;stroke-dasharray:5 4}.connection.direct .edge{stroke:var(--edge-active);stroke-width:2.4;stroke-dasharray:none}
       .edge-flow{display:none;fill:none;stroke-width:2;stroke-linecap:round;stroke-dasharray:10 42;pointer-events:none}
       .edge-flow.related{display:block;stroke:var(--flow);opacity:.95;animation:edge-current 1300ms linear infinite}
-      .port{fill:var(--canvas);stroke:var(--edge);stroke-width:1.5}.connection.related .port{fill:var(--edge-active);stroke:var(--edge-active)}
+      .port{fill:var(--canvas);stroke:var(--edge);stroke-width:1.5}.connection.direct .port{fill:var(--edge-active);stroke:var(--edge-active)}
       .edge-label{fill:var(--muted);font-size:11px;text-anchor:middle;paint-order:stroke;stroke:var(--canvas);stroke-width:6px;stroke-linejoin:round}
-      .connection.related .edge-label{fill:var(--edge-active);font-weight:600}
+      .connection.direct .edge-label{fill:var(--edge-active);font-weight:600}
       .overview .node text,.overview .node-status-chip,.overview .edge-label,.overview .port{display:none}
       @keyframes edge-current{to{stroke-dashoffset:-52}}
       .node-tooltip{position:absolute;z-index:3;width:340px;max-width:calc(100% - 24px);display:flex;flex-direction:column;border:1px solid var(--control-border);border-radius:8px;background:var(--surface);box-shadow:0 22px 48px -18px var(--tooltip-shadow);color:var(--muted);cursor:auto;animation:tooltip-in 140ms ease-out}
@@ -101,7 +102,7 @@
       <button class="copy-graph" type="button" aria-label="그래프 JSON 복사" title="그래프 JSON 복사" aria-haspopup="dialog" popovertarget="${id}-copy">${icon('<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>')}</button>
       <div class="copy-menu" id="${id}-copy" popover="auto" role="dialog" aria-label="그래프 JSON 복사 옵션"><h3>그래프 JSON 복사</h3><button type="button" data-content="include"><strong>내용 포함하여 복사</strong><span>제목, 설명, 상태와 출처를 모두 유지</span></button><button type="button" data-content="empty"><strong>내용 비우고 복사</strong><span>연결 구조 유지, 텍스트와 식별자 대체</span></button><textarea class="copy-fallback" aria-label="복사할 그래프 JSON" readonly hidden></textarea></div>
       <button class="export-image" type="button" aria-label="그래프 이미지 저장" title="전체 그래프를 PNG로 저장">${icon('<path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/>')}</button>
-    </div></header><div class="legend" aria-label="노드 유형"></div><div class="canvas"><svg class="graph" role="group"><defs></defs><g class="world"></g></svg><div class="empty" hidden>표시할 노드가 없습니다.</div>
+    </div></header><div class="legend" aria-label="노드 유형"></div><div class="canvas"><div class="connection-legend" aria-label="선택 노드와의 연결" hidden><span class="direct">직접 연결</span><span class="indirect">간접 연결</span><span class="unrelated">연결 안 됨</span></div><svg class="graph" role="group"><defs></defs><g class="world"></g></svg><div class="empty" hidden>표시할 노드가 없습니다.</div>
       <div class="tools" role="toolbar" aria-label="그래프 보기"><button type="button" aria-label="확대" title="확대">${icon('<path d="M12 5v14M5 12h14"/>')}</button><button type="button" aria-label="축소" title="축소">${icon('<path d="M5 12h14"/>')}</button><button type="button" aria-label="전체 맞춤" title="전체 맞춤">${icon('<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>')}</button><button class="zoom" type="button" aria-label="100%로 보기" title="100%로 보기"></button></div>
       <svg class="minimap" role="img" aria-label="그래프 미니맵" tabindex="0"></svg><div class="node-tooltip" id="${id}-tooltip" role="tooltip" hidden><div class="tooltip-scroll"></div></div><div class="export-status" role="status" hidden></div></div></div>`;
 
@@ -397,7 +398,8 @@
     }
     function updateHighlights() {
       const visibleSelected = representatives.get(selectedNodeId) || selectedNodeId;
-      const related = visibleSelected ? model.connectedPath(visibleGraph, visibleSelected) : {nodes: new Set(), edges: new Set(), groups: new Set()};
+      const related = model.connectedPath(visibleGraph, visibleSelected);
+      shadow.querySelector('.connection-legend').hidden = !selectedNodeId;
       const needle = query.trim().toLocaleLowerCase();
       const matches = new Set();
       const matchesQuery = data => `${data.label} ${data.details || ''} ${data.type || ''} ${data.status || ''}`.toLocaleLowerCase().includes(needle);
@@ -407,21 +409,28 @@
         const data = nodeMap.get(node.dataset.id);
         node.setAttribute('aria-pressed', String(selected));
         node.classList.toggle('connected', !selected && related.nodes.has(data.id));
+        node.classList.toggle('direct', !selected && related.direct.nodes.has(data.id));
         node.classList.toggle('unrelated', !!selectedNodeId && !related.nodes.has(data.id));
         node.classList.toggle('search-miss', !!needle && !matches.has(data.id));
       }
       for (const node of miniNodes) {
         node.classList.toggle('selected', node.dataset.id === visibleSelected);
         node.classList.toggle('connected', node.dataset.id !== visibleSelected && related.nodes.has(node.dataset.id));
+        node.classList.toggle('direct', node.dataset.id !== visibleSelected && related.direct.nodes.has(node.dataset.id));
+        node.classList.toggle('unrelated', !!selectedNodeId && !related.nodes.has(node.dataset.id));
       }
-      for (const group of [...groupElements, ...miniGroups]) group.classList.toggle('related', related.groups.has(group.dataset.id));
+      for (const group of [...groupElements, ...miniGroups]) {
+        group.classList.toggle('related', related.groups.has(group.dataset.id));
+        group.classList.toggle('direct', related.direct.groups.has(group.dataset.id));
+      }
       for (const connection of [...connections, ...miniConnections]) {
         const active = related.edges.has(connection.dataset.id);
         connection.classList.toggle('related', active);
-        if (connection.classList.contains('connection')) connection.classList.toggle('unrelated', !!selectedNodeId && !active);
+        connection.classList.toggle('direct', related.direct.edges.has(connection.dataset.id));
+        connection.classList.toggle('unrelated', !!selectedNodeId && !active);
         connection.querySelector('.edge')?.classList.toggle('related', active);
       }
-      activeFlow = flowSegments.filter(segment => related.edges.has(segment.id));
+      activeFlow = flowSegments.filter(segment => related.direct.edges.has(segment.id));
       updateFlow();
       positionTooltip();
     }

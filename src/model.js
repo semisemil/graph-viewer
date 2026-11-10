@@ -83,16 +83,27 @@
   function connectedPath(graph, selected) {
     const members = groupMembers(graph), hubs = new Map();
     const ids = [...graph.nodes.map(node => node.id), ...members.keys()];
-    if (!ids.includes(selected)) return {nodes: new Set(), edges: new Set(), groups: new Set()};
+    const direct = {nodes: new Set(), edges: new Set(), groups: new Set()};
+    if (!ids.includes(selected)) return {nodes: new Set(), edges: new Set(), groups: new Set(), direct};
+    const selectedIds = new Set([selected, ...(members.get(selected) || [])]);
+    for (const id of members.get(selected) || []) direct.nodes.add(id);
     const forward = new Map(ids.map(id => [id, []]));
     const backward = new Map(ids.map(id => [id, []]));
     const link = (source, target) => {forward.get(source).push(target); backward.get(target).push(source);};
     for (const edge of graph.edges) {
+      const sources = [edge.source, ...(members.get(edge.source) || [])];
+      const targets = [edge.target, ...(members.get(edge.target) || [])];
+      const fromSelected = sources.some(id => selectedIds.has(id)), toSelected = targets.some(id => selectedIds.has(id));
+      if (fromSelected || toSelected) {
+        direct.edges.add(edge.id);
+        for (const id of [...(fromSelected ? targets : []), ...(toSelected ? sources : [])]) (members.has(id) ? direct.groups : direct.nodes).add(id);
+        for (const id of [edge.source, edge.target]) if (members.has(id)) direct.groups.add(id);
+      }
       const reverse = edge.direction === 'both' || edge.direction === 'none';
       if (members.has(edge.source) || members.has(edge.target)) {
         const hub = Symbol(edge.id); hubs.set(edge.id, hub); forward.set(hub, []); backward.set(hub, []);
-        for (const source of [edge.source, ...(members.get(edge.source) || [])]) {link(source, hub); if (reverse) link(hub, source);}
-        for (const target of [edge.target, ...(members.get(edge.target) || [])]) {link(hub, target); if (reverse) link(target, hub);}
+        for (const source of sources) {link(source, hub); if (reverse) link(hub, source);}
+        for (const target of targets) {link(hub, target); if (reverse) link(target, hub);}
       } else {
         link(edge.source, edge.target); if (reverse) link(edge.target, edge.source);
       }
@@ -109,9 +120,10 @@
     const nodes = new Set(graph.nodes.filter(node => before.has(node.id) || after.has(node.id)).map(node => node.id));
     const edges = new Set(graph.edges.filter(edge => hubs.has(edge.id) ? before.has(hubs.get(edge.id)) || after.has(hubs.get(edge.id)) : before.has(edge.source) && before.has(edge.target) || after.has(edge.source) && after.has(edge.target)).map(edge => edge.id));
     const groups = new Set([...members].filter(([id, items]) => before.has(id) || after.has(id) || items.some(node => nodes.has(node))).map(([id]) => id));
+    for (const [id, items] of members) if (id === selected || items.some(node => direct.nodes.has(node))) direct.groups.add(id);
     const parents = new Map((graph.groups || []).map(group => [group.id, group.parentId]));
-    for (const id of groups) if (parents.get(id)) groups.add(parents.get(id));
-    return {nodes, edges, groups};
+    for (const set of [groups, direct.groups]) for (const id of set) if (parents.get(id)) set.add(parents.get(id));
+    return {nodes, edges, groups, direct};
   }
 
   function exportGraph(graph, {includeContent = true} = {}) {
