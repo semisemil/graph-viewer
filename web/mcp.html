@@ -124,7 +124,7 @@
       message('');retry.hidden=true;
     }
     async function loop(){
-      if(running || stopped || !ready || displayMode!=='fullscreen' || document.hidden)return;
+      if(running || stopped || !ready || document.hidden)return;
       running=true;
       try{await update();}
       catch(error){
@@ -135,9 +135,8 @@
     }
     function setMode(mode){
       displayMode=mode;document.body.dataset.hostDisplayMode=mode || 'unknown';
-      container.hidden=mode!=='fullscreen' || !view;
-      if(mode==='fullscreen')schedule(0);
-      else message('그래프를 별도 탭에서 열어 주세요.');
+      container.hidden=!view;
+      schedule(0);
     }
     function applyHostTheme(theme){
       if(theme==='light' || theme==='dark'){
