@@ -131,7 +131,7 @@
         if(error.code==='stale-session' || error.code==='scope-mismatch'){
           stale=true;actions=[];message('이 화면의 연결이 만료됐습니다. 그래프를 다시 여세요.',true);
         }else if(error.code==='host-rejected' && view){
-          stopped=true;actions=[];clearTimeout(timer);message('이 호스트는 화면에서 서버를 호출할 수 없어 읽기 전용입니다. 갱신하려면 open_graph를 다시 호출하세요.');
+          stopped=true;actions=[];clearTimeout(timer);message('');
         }else{message('연결 대기: '+error.message,true);retry.hidden=false;}
       }finally{running=false;schedule();}
     }
