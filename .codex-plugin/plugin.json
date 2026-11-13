@@ -1,6 +1,6 @@
 {
   "name": "graph-viewer",
-  "version": "1.10.2",
+  "version": "1.10.3",
   "description": "Interactive graphs for the current project and Codex chat.",
   "mcpServers": "./.codex-mcp.json",
   "skills": "./skills",
