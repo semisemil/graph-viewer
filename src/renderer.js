@@ -828,8 +828,9 @@
     reduced.addEventListener('change', motionChanged);
     colorScheme.addEventListener('change', applyTheme);
     const resize = new window.ResizeObserver(([entry]) => {
+      const wasTiny = surfaceWidth < 100 || surfaceHeight < 100;
       surfaceWidth = entry.contentRect.width; surfaceHeight = entry.contentRect.height;
-      if (camera) transform(); else fit(false, true);
+      if (camera && !wasTiny) transform(); else fit(false, true);
       positionCopyMenu();
     });
     resize.observe(svg);
