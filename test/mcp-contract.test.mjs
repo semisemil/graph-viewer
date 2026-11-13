@@ -370,6 +370,21 @@ test('a generated package runs after moving to a directory with spaces and Korea
   assert.deepEqual(converted.nodes.map(node => node.label), ['이동 후', 'Mermaid']);
 });
 
+test('Claude host open_graph also binds the host-rendered widget, which syncs and acknowledges in any display mode', async t => {
+  const f = await fixture(t), client = await f.start(ENTRY, ROOT, { env: { GRAPH_VIEWER_HOST: 'claude' } });
+  const graph = groupedGraph();
+  success(await client.call('graph_publish', { graph, expectedRevision: 0 }, null));
+  const result = await client.call('open_graph', { graphId: graph.graphId }, null);
+  success(result);
+  const panel = result._meta?.graphPanel;
+  assert.deepEqual(panel?.scope, { hostId: 'claude', threadId: 'project' });
+  assert.equal(panel.snapshot.graph.graphId, graph.graphId);
+  const view = (args) => client.call('graph_view', { scope: panel.scope, sessionId: panel.sessionId, ...args }, null);
+  assert.equal(success(await view({ op: 'sync' })).unchanged, false);
+  success(await view({ op: 'ack', graphId: graph.graphId, revision: panel.snapshot.revision, stateRevision: panel.snapshot.stateRevision, displayMode: 'inline' }));
+  success(await view({ op: 'ack', graphId: graph.graphId, revision: panel.snapshot.revision, stateRevision: panel.snapshot.stateRevision }));
+});
+
 test('Claude host without chat IDs keeps one project scope and opens a shared HTML viewer', async t => {
   const f = await fixture(t), env = { GRAPH_VIEWER_HOST: 'claude' };
   const client = await f.start(ENTRY, ROOT, { env });
