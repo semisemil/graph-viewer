@@ -58,7 +58,7 @@
             if(result.isError)throw new Error('앱에서 저장 요청을 취소하거나 거부했습니다.');
           },
           onAction(action){
-            if(stale || !snapshot)return;
+            if(stale || stopped || !snapshot)return;
             const queued={graphId:snapshot.graph.graphId,revision:snapshot.revision,action};
             const last=actions.at(-1);
             if(last && !last.sending && last.action.type===action.type && last.action.groupId===action.groupId)actions[actions.length-1]=queued;
@@ -130,6 +130,8 @@
       catch(error){
         if(error.code==='stale-session' || error.code==='scope-mismatch'){
           stale=true;actions=[];message('이 화면의 연결이 만료됐습니다. 그래프를 다시 여세요.',true);
+        }else if(error.code==='host-rejected' && view){
+          stopped=true;actions=[];clearTimeout(timer);message('이 호스트는 화면에서 서버를 호출할 수 없어 읽기 전용입니다. 갱신하려면 open_graph를 다시 호출하세요.');
         }else{message('연결 대기: '+error.message,true);retry.hidden=false;}
       }finally{running=false;schedule();}
     }
@@ -148,10 +150,11 @@
     addEventListener('message',event=>{
       if(event.source!==window.parent || event.data?.jsonrpc!=='2.0')return;
       const m=event.data,p=pending.get(m.id);
-      if(p){pending.delete(m.id);clearTimeout(p.timer);m.error?p.reject(new Error(m.error.message)):p.resolve(m.result);return;}
+      if(p){pending.delete(m.id);clearTimeout(p.timer);m.error?p.reject(Object.assign(new Error(m.error.message),{code:'host-rejected'})):p.resolve(m.result);return;}
       if(m.method==='ui/notifications/tool-result'){
         const binding=m.params?._meta?.graphPanel;
         if(!sessionId && binding?.scope && typeof binding.sessionId==='string'){
+          if(binding.snapshot && !view)apply(binding.snapshot,true);
           openings.push({scope:binding.scope,sessionId:binding.sessionId});schedule(0);
         }
       }else if(m.method==='ui/notifications/host-context-changed'){
