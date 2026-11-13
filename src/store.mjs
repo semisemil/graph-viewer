@@ -206,7 +206,7 @@ export class GraphStore {
   ackNative(ref, request) {
     return this.#transaction(ref, record => {
       const {view, item} = this.#nativeBinding(record, request.sessionId);
-      if (request.graphId !== item.graph.graphId || request.revision !== item.revision || !Number.isSafeInteger(request.stateRevision) || request.stateRevision < 0 || request.stateRevision > item.stateRevision || request.displayMode !== 'fullscreen') throw failure('invalid-report', '현재 그래프와 fullscreen 표시 결과를 확인하세요.');
+      if (request.graphId !== item.graph.graphId || request.revision !== item.revision || !Number.isSafeInteger(request.stateRevision) || request.stateRevision < 0 || request.stateRevision > item.stateRevision || request.displayMode !== undefined && (typeof request.displayMode !== 'string' || !request.displayMode)) throw failure('invalid-report', '현재 그래프와 표시 모드를 확인하세요.');
       view.lastReport = {graphId: request.graphId, revision: request.revision, stateRevision: request.stateRevision, displayMode: request.displayMode, at: new Date().toISOString()};
       return {write: true, value: {committed: true}};
     });

@@ -188,10 +188,11 @@ const serving = serveStdio(factory => {
     if (claudeHost) {
       const status = await store.status(ref, args.graphId);
       if (!status.snapshot) throw failure('graph-not-found', '먼저 그래프를 등록하세요.', 404);
-      const item = await store.activate(ref, status.snapshot.graph.graphId);
+      const opened = await store.openNative(ref, status.snapshot.graph.graphId);
+      const item = opened.snapshot;
       const url = new URL(`http://127.0.0.1:${await viewerPort(dataDir)}/view`);
       for (const [key, value] of Object.entries({...ref, graphId: item.graph.graphId})) url.searchParams.set(key, value);
-      return result({requested: true, graphId: item.graph.graphId, title: item.graph.title, revision: item.revision, url: url.href});
+      return result({requested: true, graphId: item.graph.graphId, title: item.graph.title, revision: item.revision, url: url.href}, {scope, ...opened});
     }
     const opened = await store.openNative(ref, args.graphId);
     const item = summary(opened.snapshot);
